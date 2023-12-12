@@ -247,7 +247,7 @@ occurrence <-
                 'occurrenceID' = occID$occurrenceID[match(.$eventID, occID$eventID)]) %>%
   dplyr::rename('recordedBy' = 'ObserverName',
                 'organismID' = 'TreeID') %>%
-  dplyr::select('eventID', 'occurrenceID', 'recordedBy', 'individualCount', 'occurrenceStatus',
+  dplyr::select('eventID', 'occurrenceID', 'recordedBy', 'individualCount', 'basisOfRecord', 'occurrenceStatus',
                 'occurrenceRemarks', 'organismID', 'scientificName', 'kingdom', 'phylum', 'class', 'order',
                 'family', 'genus', 'specificEpithet')
 
