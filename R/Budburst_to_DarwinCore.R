@@ -57,7 +57,7 @@ h1 <-
 vL_y <-
   d_bb %>%
   dplyr::group_by(Year) %>%
-  dplyr::distinct(., Area, .keep_all = T) %>%
+  dplyr::distinct(., Area, .keep_all = TRUE) %>%
   dplyr::summarise(location = paste(Area, collapse = ", ")) %>%
   dplyr::ungroup()
 
@@ -65,7 +65,7 @@ vL_y <-
 d_ev1 <-
   h1 %>%
   dplyr::select('eventID_L1', 'Year') %>%
-  dplyr::distinct(., eventID_L1, .keep_all = T) %>%
+  dplyr::distinct(., eventID_L1, .keep_all = TRUE) %>%
   dplyr::mutate('eventDate' = as.character(Year),
                 'month' = NA,
                 'day' = NA,
@@ -88,7 +88,7 @@ d_ev1 <-
 vL_d <-
   h1 %>%
   dplyr::group_by(eventDate) %>%
-  dplyr::distinct(., Area, .keep_all = T) %>%
+  dplyr::distinct(., Area, .keep_all = TRUE) %>%
   dplyr::summarise(location = paste(Area, collapse = ", ")) %>%
   dplyr::ungroup()
 
@@ -176,7 +176,7 @@ event <-
   dplyr::mutate(verbatimLocality = stringr::str_replace(string = verbatimLocality, pattern = "_", replacement = " "))
 
 # save file as text file
-write.table(event, file = "data/event.txt", sep = "\t", row.names = F)
+write.table(event, file = "data/event.txt", sep = "\t", row.names = FALSE)
 
 
 # Part III. Create occurrence table ---------------------------------------
@@ -252,8 +252,7 @@ occurrence <-
                 'family', 'genus', 'specificEpithet')
 
 # save file as text file
-write.table(occurrence, file = "data/occurrence.txt", sep = "\t", row.names = F)
-
+write.table(occurrence, file = "data/occurrence.txt", sep = "\t", row.names = FALSE)
 
 # Part IV: Create Measurement or fact file --------------------------------
 
@@ -296,4 +295,4 @@ eMOF <-
                 'measurementUnit', 'measurementMethod', 'measurementRemarks')
 
 # save file as text file
-write.table(eMOF, file = "data/extendedmeasurementorfact.txt", sep = "\t", row.names = F)
+write.table(eMOF, file = "data/extendedmeasurementorfact.txt", sep = "\t", row.names = FALSE)
