@@ -1,7 +1,7 @@
 ### Pipeline: Bud burst data of Animal Ecology/NIOO-KNAW to Darwin Core ###
 
 # Author: Cherine Jantzen
-# Created: 04/12/2023
+# Created: 30/11/2023
 # Last updated: 12/12/2023
 
 # Part I: Retrieve data ---------------------------------------------------
@@ -10,36 +10,10 @@
 library(lubridate)
 library(tidyverse)
 library(taxize)
-library(DBI)
-library(odbc)
-library(rstudioapi)
-library(zip)
-library(readxl)
-
-# connect to NIOO AnE SQL server to retrieve data
-con <- DBI::dbConnect(drv = odbc::odbc(),
-                      Driver = {'SQL Server'},
-                      UID = rstudioapi::askForPassword('Uid'),
-                      Pwd = rstudioapi::askForPassword('Pwd'),
-                      Server = 'ws.ane.nioo.int')
 
 # get input data
 
-## tbl_Area
-d_Area <- dplyr::tbl(con, dbplyr::in_catalog(catalog = "AnE_Budburst", schema = "dbo", table = "tbl_Area")) %>%
-  dplyr::collect() 
-
-## tbl_Budburst
-d_bb <- dplyr::tbl(con, dbplyr::in_catalog(catalog = "AnE_Budburst", schema = "dbo", table = "tbl_Budburst")) %>%
-  dplyr::collect()
-
-## tbl_Tree
-d_tree <- dplyr::tbl(con, dbplyr::in_catalog(catalog = "AnE_Budburst", schema = "dbo", table = "tbl_Tree")) %>%
-  dplyr::collect()
-
-## tbl_TreeSpecies
-d_tsp <- dplyr::tbl(con, dbplyr::in_catalog(catalog = "AnE_Budburst", schema = "dbo", table = "tbl_TreeSpecies")) %>%
-  dplyr::collect()
+# TODO get data through dataverse API
 
 # Part II: create event file (= core of DwC-Archive) ----------------------
 
