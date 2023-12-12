@@ -1,6 +1,8 @@
-### Pipeline: Darwin Core Archive for bud burst data of Animal Ecology/NIOO-KNAW ###
+### Pipeline: Bud burst data of Animal Ecology/NIOO-KNAW to Darwin Core ###
+
 # Author: Cherine Jantzen
-# Date: 04/12/2023
+# Created: 04/12/2023
+# Last updated: 12/12/2023
 
 # Part I: Retrieve data ---------------------------------------------------
 
@@ -35,19 +37,9 @@ d_bb <- dplyr::tbl(con, dbplyr::in_catalog(catalog = "AnE_Budburst", schema = "d
 d_tree <- dplyr::tbl(con, dbplyr::in_catalog(catalog = "AnE_Budburst", schema = "dbo", table = "tbl_Tree")) %>%
   dplyr::collect()
 
-# rename longitude and latitude because names are incorrect in database (temporary)
-d_tree <- d_tree %>% 
-  dplyr::rename(Longitude_old = 'Latitude',
-                Latitude_old = 'Longitude')
-
 ## tbl_TreeSpecies
 d_tsp <- dplyr::tbl(con, dbplyr::in_catalog(catalog = "AnE_Budburst", schema = "dbo", table = "tbl_TreeSpecies")) %>%
   dplyr::collect()
-
-# new coordinates for HV trees (as long as they are not in the database yet - temporary)
-dco <- readxl::read_excel('data/new_coordinates_HV_alltrees.xlsx') %>%
-  dplyr::rename(Longitude_new = 'Longitude',
-                Latitude_new = 'Latitude') 
 
 # Part II: create event file (= core of DwC-Archive) ----------------------
 
@@ -69,16 +61,10 @@ d_bb <- d_bb %>%
 d_bb <- d_bb %>% 
   dplyr::mutate(Area = stringr::str_replace(string = Area, pattern = " ", replacement = "_"))
 
-# add new coordinates for the trees (temporary)
-d_tree <- 
-  d_tree %>%
-  dplyr::left_join(dco, by = c('AreaID', 'SiteNumber', 'TreeNumber')) %>%
-  dplyr::mutate(Longitude = dplyr::if_else(AreaID == 11, Longitude_new, Longitude_old),
-                Latitude = dplyr::if_else(AreaID == 11, Latitude_new, Latitude_old))
-
-# create eventDate and eventID of level 1 (area abbreviation + Year) 
-# and level 2 (level 1 ID + day of year)
-# and level 3 (level 2 ID + TreeID)
+# create eventDate and (hierarchical) eventID of:
+# level 1 (<area abbreviation><year>; e.g., HV1988) 
+# level 2 (<level 1 ID>_<day of year>; e.g., HV1988_119)
+# level 3 (<level 2 ID>_<TreeID>; e.g., HV1988_119_412)
 h1 <- 
   d_bb %>% 
   dplyr::select(Year, Month, Day, BudburstID, Area, AreaAbr, TreeID) %>%
@@ -159,10 +145,6 @@ d_bb <- d_bb %>%
                      dplyr::select('eventID' = 'eventID_L3', 'BudburstID'), 
                    by = 'BudburstID')
 
-# d_tree <- d_tree %>% dplyr::left_join(d_bb %>% 
-#                                         dplyr::select('eventID', 'TreeID'),
-#                                       by = 'TreeID')
-
 # create event file
 d_ev3 <-
   h1 %>%
@@ -222,7 +204,7 @@ event <- event %>%
   dplyr::mutate(verbatimLocality = stringr::str_replace(string = verbatimLocality, pattern = "_", replacement = " "))
 
 # save file as text file
-write.table(event, file = "event.txt", sep = "\t", row.names = F)
+write.table(event, file = "data/event.txt", sep = "\t", row.names = F)
 
 
 # Part III. Create occurrence table ---------------------------------------
@@ -256,16 +238,22 @@ tax <- taxize::get_gbifid_(sci = sciNames) %>%
 
 
 # bind taxonomic information to each observation
-t_sp_1 <- left_join(t_sp, tax, by = c("species" = "canonicalname"))
+t_sp_1 <- dplyr::left_join(t_sp, tax, by = c("species" = "canonicalname"))
 
 
 ## 2. Create occurrence IDs ####
 
 # check whether there is any occasion in which more than one tree was sampled at a sampling event
-#(should not be the case here as we know that one measurement is only one tree at a time)
-d_bb %>% count(eventID) %>% filter(n > 1)
+# (should not be the case here as we know that one measurement is only one tree at a time)
+if(d_bb %>% dplyr::count(eventID) %>% dplyr::filter(n > 1) %>% nrow() > 0) {
+  
+  stop(paste("In", d_bb %>% dplyr::count(eventID) %>% dplyr::filter(n > 1) %>% nrow(), 
+             "instances of an event, more than one tree was sampled.",
+             "This should not be the case for level-3 events."))
+  
+}
 
-# create occurenceID by extending eventID with '_1' 
+# create occurrenceID by extending eventID with '_1' 
 occID <- 
   d_ev3 %>% 
   dplyr::arrange(eventDate) %>%
@@ -287,7 +275,7 @@ occurrence <-
                 family, genus, specificEpithet)
 
 # save file as text file
-write.table(occurrence, file = "occurrence.txt", sep = "\t", row.names = F)
+write.table(occurrence, file = "data/occurrence.txt", sep = "\t", row.names = F)
 
 
 # Part IV: Create Measurement or fact file --------------------------------
@@ -330,14 +318,4 @@ eMOF <-
                 measurementUnit, measurementMethod, measurementRemarks)
 
 # save file as text file
-write.table(eMOF, file = "extendedmeasurementorfact.txt", sep = "\t", row.names = F)
-
-
-# Part V: Create DwC-A as zip folder -----------------------------------------
-
-# requires the creation of the meta.xml and EML.xml files first 
-
-files = c('event.txt', 'occurrence.txt', 'extendedmeasurementorfact.txt' , "meta.xml", 'EML.xml')
-zip::zip("DwC-A_budburst.zip", files, root = ".", mode = "mirror")
-
-zip::zip_list("DwC-A_budburst.zip")
+write.table(eMOF, file = "data/extendedmeasurementorfact.txt", sep = "\t", row.names = F)
