@@ -1,8 +1,8 @@
 # Pipeline: Data processing of bud burst DwC-A - Calculation of bud burst dates per tree and year ####
 
-# Created: 14/11/2023
 # Author: Cherine Jantzen 
-
+# Created: 14/11/2023
+# Last updated: 15/12/2023
 
 # Part I: Preparation  ----------------------------------------------------
 
@@ -15,7 +15,7 @@ event <- read.csv('data/event.txt', sep = '\t')
 occ <- read.csv('data/occurrence.txt', sep = '\t')
 mof <- read.csv('data/extendedmeasurementorfact.txt', sep = '\t')
 
-# connect measurements with events (and therefore trees)
+# connect measurements with events (i.e., trees)
 d_bb <- dplyr::left_join(event, mof, by = 'eventID', relationship = "many-to-many")
 
 # get organism ID for each event
@@ -56,10 +56,10 @@ q1 <-
 ## get the minimum of the minimum date
 q2 <- 
   q1 %>% 
-  group_by(year, organismID) %>%
-  slice_min(order_by = MinDOY) %>%
-  rename(MinOfMinDOY = 'MinDOY') %>%
-  ungroup()
+  dplyr::group_by(year, organismID) %>%
+  dplyr::slice_min(order_by = MinDOY) %>%
+  dplyr::rename(MinOfMinDOY = 'MinDOY') %>%
+  dplyr::ungroup()
 
 ## Add min of min April Date (of q2) to bud burst data
 d_bb_1 <- dplyr::left_join(d_bb, q2 %>% 
@@ -71,24 +71,21 @@ d_bb_1 <- dplyr::left_join(d_bb, q2 %>%
 
 ## filter for 1991, measures below criterium & dates earlier than MinOfMinDOY
 q3_1 <- d_bb_1 %>% 
-  dplyr::filter(year == 1991 & measurementValue < crit_measValue & DOY < MinOfMinDOY) 
+  dplyr::filter(year == 1991 & measurementValue < crit_measValue & DOY < MinOfMinDOY) %>%
+  dplyr::rename(DOY_1991 = 'DOY',
+                measurementValue_1991 = 'measurementValue')
 
 ## add 1991 DOY and measurements to bud burst table
 d_bb_2 <-
   q3_1 %>% 
-  dplyr::select('year', 'organismID', 'DOY', 'measurementValue') %>%
-  dplyr::right_join(d_bb, by = c('year', 'organismID', 'DOY', 'measurementValue'), relationship = "many-to-many", keep = TRUE) %>%
-  dplyr::rename(DOY_1991 = 'DOY.x',
-                measurementValue_1991 = 'measurementValue.x',
-                organismID = 'organismID.y',
-                year = 'year.y',
-                DOY = 'DOY.y',
-                measurementValue = 'measurementValue.y') %>%
-  dplyr::select(!c('year.x', 'organismID.x'))
+  dplyr::select('year', 'organismID', 'DOY_1991', 'measurementValue_1991') %>%
+  dplyr::right_join(d_bb, 
+                    by = c('year' = 'year', 'organismID' = 'organismID'), 
+                    relationship = "many-to-many", keep = FALSE)
 
 ## combine real values with corrected values for 1991
 d_bb_2 <- d_bb_2 %>% dplyr::mutate(newDOY = dplyr::if_else(year == 1991, DOY_1991, DOY),
-                         newmeasurementValue = dplyr::if_else(year == 1991, measurementValue_1991, measurementValue))
+                                   newmeasurementValue = dplyr::if_else(year == 1991, measurementValue_1991, measurementValue))
 
 # 4. Trees with measures below bud burst criterium ####
 q3_2 <- 
@@ -134,9 +131,9 @@ q7 <- q6 %>%
   dplyr::mutate(bb_date_doy = dplyr::if_else(measurementValue == crit_measValue, MinOfMinDOY, int_Date)) %>%
   dplyr::group_by(year, verbatimLocality, organismID) %>%
   dplyr::mutate(n_Tree = n(),
-                bb_date = as.Date(round(bb_date_doy) - 1, origin = paste0(year, "-01-01"))) %>%
+                bb_date = as.Date(round(bb_date_doy) - 1, origin = paste0(year, "-01-01"))) %>% # rounding up or down here?
   dplyr::ungroup() %>% 
   dplyr::select('year', 'verbatimLocality', 'scientificName', 'organismID', 'bb_date_doy', 'bb_date', 'n_Tree')
 
 ## save as CSV
-write.csv(d7, 'annual_budburst_per_tree.csv', row.names = FALSE)
+write.csv(q7, 'data/annual_budburst_per_tree.csv', row.names = FALSE)
