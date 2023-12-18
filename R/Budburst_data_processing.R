@@ -7,8 +7,7 @@
 # Part I: Preparation  ----------------------------------------------------
 
 # load packages
-library(dplyr)
-library(lubridate)
+library(tidyverse)
 library(here)
 
 # load DwC-A files
@@ -17,7 +16,7 @@ occ <- read.csv(here::here("data", "occurrence.txt"), sep = "\t")
 mof <- read.csv(here::here("data", "extendedmeasurementorfact.txt"), sep = "\t")
 
 # connect measurements with events (i.e., trees)
-d_bb <- dplyr::left_join(event, mof, by = "eventID", relationship = "many-to-many")
+d_bb <- dplyr::left_join(event, mof, by = "eventID")
 
 # get organism ID for each event
 d_bb <-
@@ -42,14 +41,14 @@ crit_measValue <- 1
 ## filter for measurement type criterion
 d_bb <-
   d_bb %>%
-  dplyr::filter(measurementType == crit_measType) |>
+  dplyr::filter(measurementType == crit_measType) %>%
   ## convert date to day of year for easier calculations
   dplyr::mutate(DOY = lubridate::yday(eventDate))
 
 ## get minimum dates per tree per year above measurement value criterion
 min_d_bb <- d_bb |>
-  dplyr::filter(measurementValue >= crit_measValue) |>
-  dplyr::filter(DOY == min(DOY), .by = c("year", "organismID")) |>
+  dplyr::filter(measurementValue >= crit_measValue) %>%
+  dplyr::filter(DOY == min(DOY), .by = c("year", "organismID")) %>%
   dplyr::rename("min_DOY" = "DOY")
 
 ## Add minimum dates to bud burst data
@@ -81,7 +80,13 @@ d_bb_2 <- d_bb_2 %>% dplyr::mutate(newDOY = dplyr::if_else(year == 1991, DOY_199
                                                                         measurementValue_1991,
                                                                         measurementValue))
 
-# 4. Trees with measures below bud burst criterium ####
+# test <- d_bb_1 |>
+#   dplyr::group_by(year, organismID, measurementValue) %>%
+#   dplyr::filter(measurementValue < crit_measValue) %>%
+#   dplyr::summarise(MaxDOY = max(DOY)) %>%
+#   dplyr::ungroup()
+
+# 4. Trees with measures below bud burst criterion ####
 q3_2 <-
   d_bb_2 %>%
   dplyr::group_by(year, organismID, newmeasurementValue) %>%
