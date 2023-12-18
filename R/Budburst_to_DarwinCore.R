@@ -127,7 +127,7 @@ d_bb <- d_bb %>%
 d_ev3 <-
   h1 %>%
   dplyr::select('eventID_L3', 'eventID_L2', 'eventDate', 'Year', 'Month', 'Day', 'TreeID') %>%
-  dplyr::mutate('samplingProtocol' = 'Warmer springs disrupt the synchrony of oak and winter moth phenology, https://doi.org/10.1098/rspb.2000.1363',
+  dplyr::mutate('samplingProtocol' = 'https://doi.org/10.1098/rspb.2000.1363',
                 'sampleSizeValue' = 1,
                 'sampleSizeUnit' = 'tree',
                 'decimalLatitude' = d_tree$Latitude[match(.$TreeID, d_tree$TreeID)],
@@ -286,13 +286,10 @@ MOF <-
   dplyr::select(!c('ID', 'occurrenceID')) %>%
   # rename measurement types to fit more controlled vocabulary
   dplyr::mutate(measurementType = dplyr::case_when(measurementType == "TreeTopScore" ~ "bud burst stage (PO:0025532) of the tree crown",
-                                                   measurementType == "TreeAllScore" ~ "bud burst stage (PO:0025532) of the whole tree"))
-
-# reorder columns according to GBIF list
-eMOF <-
-  MOF %>%
+                                                   measurementType == "TreeAllScore" ~ "bud burst stage (PO:0025532) of the whole tree")) %>%
+  # reorder columns according to GBIF list
   dplyr::select('measurementID', 'eventID', 'measurementType', 'measurementValue',
                 'measurementUnit', 'measurementMethod', 'measurementRemarks')
 
 # save file as text file
-write.table(eMOF, file = "data/extendedmeasurementorfact.txt", sep = "\t", row.names = FALSE)
+write.table(MOF, file = "data/extendedmeasurementorfact.txt", sep = "\t", row.names = FALSE)
