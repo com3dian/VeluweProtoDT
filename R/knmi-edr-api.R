@@ -1,9 +1,9 @@
 # Get daily weather data through KNMI EDR API
 # Author: Stefan Vriend
 # Created: 2023/11/20
-# Last updated: 2023/12/14
+# Last updated: 2023/12/19
 
-# Enviromental Data Retrieval (EDR)
+# Environmental Data Retrieval (EDR)
 # https://developer.dataplatform.knmi.nl/edr-api
 # The goal of an EDR API is to query environmental data in a spatiotemporal manner. This data can be queried using different query patterns. You can, for example, query the data at a position or in a spatial cube. The available query endpoints depend on the Collection you are querying.
 
