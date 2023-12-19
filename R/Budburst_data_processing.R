@@ -42,7 +42,7 @@ crit_measValue <- 1
 d_bb_crown <-
   d_bb %>%
   dplyr::filter(measurementType == crit_measType) %>%
-  ## convert date to day of year for easier calculations
+  ## Convert date to day of year for easier calculations
   dplyr::mutate(DOY = lubridate::yday(eventDate))
 
 # Bud burst date is the first date where the bud burst stage of the tree crown is scored >= 1
@@ -58,9 +58,9 @@ d_bb_crown2 <- dplyr::left_join(d_bb_crown,
                                 min_bb,
                                 by = c("year", "organismID"))
 
-# Second, we also need the latest date (and associated value) at which the bud burst stage was NOT above the criterion
+# Second, we also need the latest date (and associated value) at which the bud burst stage was below the criterion
 # This is used to interpolate a bud burst date in cases where the tree reached stage 1 in-between two field visits
-# In other cases, where stage 1 was observed during a field visit, the date of that visit is used as the bud burst date.
+# In other cases, where stage 1 was observed during a field visit, the date of that visit is used as the bud burst date
 max_bb <- d_bb_crown2 %>%
   dplyr::filter(measurementValue < crit_measValue & DOY < min_DOY_above_criterion,
                 .by = c("year", "organismID")) %>%
