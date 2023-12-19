@@ -1,11 +1,11 @@
-# Get daily mean temperature data through KNMI EDR API
+# Get daily weather data through KNMI EDR API
 # Author: Stefan Vriend
 # Created: 2023/11/20
 # Last updated: 2023/12/14
 
 # Enviromental Data Retrieval (EDR)
 # https://developer.dataplatform.knmi.nl/edr-api
-# The goal of an EDR API is to query environmental data in a spatio-temporal manner. This data can be queried using different query patterns. You can, for example, query the data at a position or in a spatial cube. The available query endpoints depend on the Collection you are querying.
+# The goal of an EDR API is to query environmental data in a spatiotemporal manner. This data can be queried using different query patterns. You can, for example, query the data at a position or in a spatial cube. The available query endpoints depend on the Collection you are querying.
 
 # The API has a number of restrictions:
 # - Users can send up to 200 requests per second (this is only an issue for high-performance computation)
@@ -23,6 +23,7 @@ library(jsonlite)
 
 # Arguments:
 # bbox: spatial bounding box for which to retrieve data. Vector of four numeric values, indicating western-most, southern-most, eastern-most and northern-most point of the bounding box (in decimal degrees).
+# variable: weather variable of interest. Either "mean temperature", "max temperature", "min temperature" or "precipitation".
 # start_date: start date of period for which to retrieve data. Date format "yyyy-mm-dd". Use e.g., `lubridate::make_date()`.
 # start_time: start time of period for which to retrieve data. Character string of format "hh:mm:ss". Default: "00:00:00".
 # end_date: end date of period for which to retrieve data. Date format "yyyy-mm-dd". Use e.g., `lubridate::make_date()`.
@@ -30,11 +31,26 @@ library(jsonlite)
 # knmi_edr_key: user-specific KNMI EDR API key (request here: https://developer.dataplatform.knmi.nl/edr-api#token). Character string.
 
 retrieve_knmi_edr_data <- function(bbox,
+                                   variable = c("mean temperature", "max temperature",
+                                                "min temperature", "precipitation"),
                                    start_date,
                                    start_time = "00:00:00",
                                    end_date,
                                    end_time = "23:59:59",
                                    knmi_edr_key = Sys.getenv("KNMI_EDR_KEY")) {
+
+  # Create KNMI variable lookup table to match variable inputs to KNMI collection & parameter names
+  knmi_var_lookup <- tibble::tibble(
+    collection = c("Tg1", "Tx1", "Tn1", "Rd1"),
+    parameter = c("temperature", "temperature", "temperature", "precipitation"),
+    var_name = c("mean temperature", "max temperature", "min temperature", "precipitation")
+  )
+
+  if(!(variable %in% knmi_var_lookup$var_name)) {
+
+    stop("The weather variable you provided does not exist. Select one of: 'mean temperature', 'max temperature', 'min temperature', or 'precipitation'.")
+
+  }
 
   # Check that start_date and end_date are of class 'Date' to ensure that we can retrieve
   if(!any(class(start_date) == "Date", class(end_date) == "Date")) {
@@ -46,10 +62,12 @@ retrieve_knmi_edr_data <- function(bbox,
   repeat({ # If retrieving data from KNMI EDR API fails, try again
 
     # Send GET request to KNMI EDR API
-    edr_get <- httr::GET(url = paste0("https://api.dataplatform.knmi.nl/edr/collections/Tg1/",
-                                      "cube?bbox=", paste(bbox, collapse = "%2C"),
+    edr_get <- httr::GET(url = paste0("https://api.dataplatform.knmi.nl/edr/collections/",
+                                      knmi_var_lookup |> dplyr::filter(var_name == variable) |> dplyr::pull("collection"),
+                                      "/cube?bbox=", paste(bbox, collapse = "%2C"),
                                       "&z=0",
-                                      "&parameter-name=temperature",
+                                      "&parameter-name=",
+                                      knmi_var_lookup |> dplyr::filter(var_name == variable) |> dplyr::pull("parameter"),
                                       "&datetime=",
                                       paste(stringr::str_sub(string = start_date, start = 1, end = 4),
                                             stringr::str_sub(string = start_date, start = 6, end = 7),
@@ -91,6 +109,7 @@ temp_data <- purrr::map(.x = 1988:2023,
 
                           # Retrieve data for period 1 (1 Dec to 1 March)
                           period1 <- retrieve_knmi_edr_data(bbox = bbox,
+                                                            variable = "mean temperature",
                                                             start_date = lubridate::make_date(.x - 1, 12, 1),
                                                             start_time = "00:00:00",
                                                             end_date = lubridate::make_date(.x, 3, 1),
@@ -98,6 +117,7 @@ temp_data <- purrr::map(.x = 1988:2023,
 
                           # Retrieve data for period 2 (2 March to 31 May)
                           period2 <- retrieve_knmi_edr_data(bbox = bbox,
+                                                            variable = "mean temperature",
                                                             start_date = lubridate::make_date(.x, 3, 2),
                                                             start_time = "00:00:00",
                                                             end_date = lubridate::make_date(.x, 5, 31),
