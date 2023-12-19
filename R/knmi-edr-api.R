@@ -69,8 +69,8 @@ retrieve_knmi_edr_data <- function(bbox,
     edr_data <- jsonlite::fromJSON(txt = rawToChar(x = edr_get$content))
 
     # If unsuccessful, print message (and try again)
-    if(is.null(edr_data$domain)) message(paste("Request to KNMI EDR API failed for starting date",
-                                                start_date, "Will try again.", sep = " "))
+    if(is.null(edr_data$domain)) message(paste0("KNMI EDR API failed to fulfill request with starting date ",
+                                                start_date, ". Will try again."))
 
     # If successful, end
     if(!is.null(edr_data$domain)) break()
