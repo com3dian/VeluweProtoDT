@@ -26,9 +26,9 @@ A collaborative project by DANS and NIOO about describing the workflow of making
 ### Project partners <a name="project-partners"/>
 - Cees Hof / DANS-KNAW
 - Wim Hugo / DANS-KNAW
-- [Cherine Jantzen](https://github.com/CherineJ) / NIOO-KNAW
-- Marcel Visser / NIOO-KNAW
-- [Stefan Vriend](https://github.com/StefanVriend) / NIOO-KNAW
+- [Cherine Jantzen](https://github.com/CherineJ) / NIOO-KNAW (ORCID: [0009-0006-0723-2682](https://orcid.org/0009-0006-0723-2682))
+- Marcel Visser / NIOO-KNAW (ORCID: [0000-0002-1456-1939](http://orcid.org/0000-0002-1456-1939))
+- [Stefan Vriend](https://github.com/StefanVriend) / NIOO-KNAW (ORCID: [0000-0002-9006-5988](http://orcid.org/0000-0002-9006-5988))
 
 ### Deliverables <a name="deliverables"/>
 - [ ] FAIR and mobilised datasets
