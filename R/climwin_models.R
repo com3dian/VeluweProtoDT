@@ -37,50 +37,162 @@ budburst$date_info <- paste(budburst$year, floor(budburst$avg_bud_burst_DOY))
 budburst$date <- strptime(budburst$date_info, "%Y %j")
 budburst$date <- as.factor(format(as.Date(budburst$date), "%d/%m/%Y"))
 
-# create numeric dates to be used in the baseline model
+# create numeric dates to be used in the baseline model &
+# and exclude location 7, as this labels trees without coordinates 
 budburst <- budburst %>% 
   dplyr::mutate(formatted_date = as.Date(as.character(date), format = "%d/%m/%Y"),
-                DOY = lubridate::yday(formatted_date))
-
-# exclude location 7, as this labels trees without coordinates 
-# and filter for species: Quercus robur
-budburst_2 <- budburst %>% filter(date != "NA", 
-                                  locID != "loc7", 
-                                  scientificName == 'Quercus robur L.')
+                DOY = lubridate::yday(formatted_date)) %>%
+  dplyr::filter(date != "NA", 
+                locID != "loc7")
 
 
-# III. Sliding window analysis --------------------------------------------
 
-## 1. set parameters for sliding window model ####
+# III. Climwin analysis: Quercus robur --------------------------------------------
 
-# refday = reference day, before which windows are tested
-refday <- c(31, 5)
+find_first_climate_window <- function(species,
+                                      range,
+                                      reference_day) {
+  
+  
+  # filter input data for species  
+  model_input  <- budburst %>% dplyr::filter(scientificName == species)
+  
+  # Climwin analysis: Find first window 
+  first_window <- climwin::slidingwin(baseline = lm(DOY ~ year, data = model_input), 
+                                      xvar = list(Temp = temp$temperature),
+                                      cdate = temp$factor_date, 
+                                      bdate = model_input$date,
+                                      type = "absolute", 
+                                      refday = reference_day,
+                                      spatial = list(model_input$locID, temp$locID),
+                                      range = range, 
+                                      func = "lin", 
+                                      stat = "mean")  
+  
+  # Ta
+  reference_year <- dplyr::if_else(condition = lubridate::leap_year(max(temp$year)), 
+                                   true = max(temp$year) - 1, 
+                                   false = max(temp$year))
+  
+  start_date <- lubridate::make_date(year = reference_year, 
+                                     month = reference_day[2], 
+                                     day = reference_day[1]) - first_window$combos[1,]$WindowOpen
+  
+  end_date <- lubridate::make_date(year = reference_year, 
+                                   month = reference_day[2], 
+                                   day = reference_day[1]) - first_window$combos[1,]$WindowClose
+  
+  return(list(first_window, model_input, range, reference_day, start_date, end_date))
+}
 
-# range = the range of days before the reference day, in which windows are tested
-range <-  c(181, 0)
+
+# calculate windows for each species of interest
+first_window_Qrobur <- find_first_climate_window(species = 'Quercus robur L.',
+                                                 reference_day = c(31, 5),
+                                                 range = c(181, 0))
+
+first_window_Qrubra <- find_first_climate_window(species = 'Quercus rubra L.',
+                                                 reference_day = c(31, 5),
+                                                 range = c(181, 0))
+
+
+
+# VI. Check significance of model -----------------------------------------
+# To account for over fitting and to check whether the selected window has been selected by chance, 
+# a randomization test on that window is performed. 
+
+first_window_Qrobur_rand <- climwin::randwin(repeats = 20, 
+                                             baseline = lm(DOY ~ year, data = budburst_Qrobur),
+                                             xvar = list(Temp = temp$temperature),
+                                             cdate = temp$factor_date, 
+                                             bdate = budburst_Qrobur$date,
+                                             type = "absolute", 
+                                             refday = refday,
+                                             spatial = list(budburst_Qrobur$locID, temp$locID),
+                                             range = range, 
+                                             func = "lin", 
+                                             stat = "mean")
+
+# get the p-value of the randomization test
+climwin::pvalue(dataset = first_window_Qrobur[[1]]$Dataset, 
+                datasetrand = first_window_Qrobur_rand[[1]],
+                metric = "C", 
+                sample.size = length(unique(budburst_Qrobur$year)))
+
+
+# V. Check for a second window ---------------------------------------------------------
+# There sometimes can be a second climate window that fits the data. To test for that, the data of the 
+# best window (i.e., first window) is taken as the input data for the same model as before.
+
+# save data of best model of first window for use as new data for the second window
+new_model_data <- first_window_Qrobur[[1]]$BestModelData 
+
+# Rename column 
+new_model_data$first_window <- new_model_data$climate 
+
+## 1. slidingwin to find second window on data of first window ####
+second_window_Qrobur <- climwin::slidingwin(baseline = lm(yvar ~ first_window + year, data = new_model_data), 
+                                     xvar = list(Temp = temp$temperature),
+                                     cdate = temp$factor_date, 
+                                     bdate = budburst_Qrobur$date,
+                                     type = "absolute", 
+                                     refday = refday,
+                                     spatial = list(budburst_Qrobur$locID, temp$locID),
+                                     range = range, 
+                                     func = "lin", 
+                                     stat = "mean")
+
+# give model results
+second_window_Qrobur$combos
+
+## 2. Randomization ####
+# slidingwin to find second window on data of first window
+second_window_Qrobur_rand <- climwin::randwin(repeats = 20,
+                                              baseline = lm(yvar ~ first_window + year, data = new_model_data), 
+                                              xvar = list(Temp = temp$temperature),
+                                              cdate = temp$factor_date, 
+                                              bdate = budburst_Qrobur$date,
+                                              type = "absolute", 
+                                              refday = refday,
+                                              spatial = list(budburst_Qrobur$locID, temp$locID),
+                                              range = range, 
+                                              func = "lin", 
+                                              stat = "mean")
+
+# p-value of randomization
+climwin::pvalue(dataset = second_window_Qrobur[[1]]$Dataset, 
+                datasetrand = second_window_Qrobur_rand[[1]],
+                metric = "C", 
+                sample.size = length(unique(budburst_Qrobur$year)))
+
+
+# VI. Climate windows for second species: Quercus rubra  ------------------
+
+# select tree species: Quercus rubra
+budburst_Qrubra <- budburst %>% filter(scientificName == 'Quercus rubra L.')
 
 
 ## 2. Climwin analysis: Find first window ####
-first_window <- climwin::slidingwin(baseline = lm(DOY ~ year, data = budburst_2), 
-                                    xvar = list(Temp = temp$temperature),
-                                    cdate = temp$factor_date, 
-                                    bdate = budburst_2$date,
-                                    type = "absolute", 
-                                    refday = refday,
-                                    spatial = list(budburst_2$locID, temp$locID),
-                                    range = range, 
-                                    func = "lin", 
-                                    stat = "mean")
+first_window_Qrubra <- climwin::slidingwin(baseline = lm(DOY ~ year, data = budburst_Qrubra), 
+                                           xvar = list(Temp = temp$temperature),
+                                           cdate = temp$factor_date, 
+                                           bdate = budburst_Qrubra$date,
+                                           type = "absolute", 
+                                           refday = refday,
+                                           spatial = list(budburst_Qrubra$locID, temp$locID),
+                                           range = range, 
+                                           func = "lin", 
+                                           stat = "mean")
 
 
 # best model window results
-first_window$combos
+first_window_Qrubra$combos
 
 
 ## 3. Calculate calender dates of the first window ####
 
 ## back-calculate start day of year of window
-start_win <- range[1] - first_window$combos[1,7]
+start_win <- range[1] - first_window_Qrubra$combos[1,7]
 
 ## transform result to calender date (year is set randomly to a year within  the data that is not a leap year)
 start_date <- temp %>% 
@@ -90,8 +202,8 @@ start_date <- temp %>%
 
 start_date
 
-## back-calculate end day of year of window (subtract 31 days of December for correct calender date)
-end_win <- range[1] - first_window$combos[1,8] - 31 
+## back-calculate end day of year of window
+end_win <- range[1] - first_window_Qrubra$combos[1,8]  
 
 ## transform result to calender date (year is set to a year within the data that is not a leap year)
 end_date <- temp %>% 
@@ -101,70 +213,24 @@ end_date <- temp %>%
 
 end_date
 
-# VI. Check significance of model -----------------------------------------
+# VI. Check significance of model: Quercus rubra -----------------------------------------
 # To account for over fitting and to check whether the selected window has been selected by chance, 
 # a randomization test on that window is performed. 
 
-first_window_rand <- climwin::randwin(repeats = 20, 
-                                      baseline = lm(DOY ~ year, data = budburst_2),
+first_window_Qrubra_rand <- climwin::randwin(repeats = 20, 
+                                      baseline = lm(DOY ~ year, data = budburst_Qrubra),
                                       xvar = list(Temp = temp$temperature),
                                       cdate = temp$factor_date, 
-                                      bdate = budburst_2$date,
+                                      bdate = budburst_Qrubra$date,
                                       type = "absolute", 
                                       refday = refday,
-                                      spatial = list(budburst_2$locID, temp$locID),
+                                      spatial = list(budburst_Qrubra$locID, temp$locID),
                                       range = range, 
                                       func = "lin", 
                                       stat = "mean")
 
 # get the p-value of the randomization test
-climwin::pvalue(dataset = first_window[[1]]$Dataset, 
-                datasetrand = first_window_rand[[1]],
+climwin::pvalue(dataset = first_window_Qrubra[[1]]$Dataset, 
+                datasetrand = first_window_Qrubra_rand[[1]],
                 metric = "C", 
-                sample.size = length(unique(budburst_2$year)))
-
-
-# V. Check for a second window ---------------------------------------------------------
-# There sometimes can be a second climate window that fits the data. To test for that, the data of the 
-# best window (i.e., first window) is taken as the input data for the same model as before.
-
-# save data of best model of first window for use as new data for the second window
-new_model_data <- first_window[[1]]$BestModelData 
-
-# Rename column 
-new_model_data$first_window <- new_model_data$climate 
-
-## 1. slidingwin to find second window on data of first window ####
-second_window <- climwin::slidingwin(baseline = lm(yvar ~ first_window + year, data = new_model_data), 
-                                     xvar = list(Temp = temp$temperature),
-                                     cdate = temp$factor_date, 
-                                     bdate = budburst_2$date,
-                                     type = "absolute", 
-                                     refday = refday,
-                                     spatial = list(budburst_2$locID, temp$locID),
-                                     range = range, 
-                                     func = "lin", 
-                                     stat = "mean")
-
-# give model results
-second_window$combos
-
-## 2. Randomization ####
-# slidingwin to find second window on data of first window
-second_window_rand <- climwin::randwin(repeats = 20,
-                                       baseline = lm(yvar ~ first_window + year, data = new_model_data), 
-                                       xvar = list(Temp = temp$temperature),
-                                       cdate = temp$factor_date, 
-                                       bdate = budburst_2$date,
-                                       type = "absolute", 
-                                       refday = refday,
-                                       spatial = list(budburst_2$locID, temp$locID),
-                                       range = range, 
-                                       func = "lin", 
-                                       stat = "mean")
-
-# p-value of randomization
-climwin::pvalue(dataset = second_window[[1]]$Dataset, 
-                datasetrand = second_window_rand[[1]],
-                metric = "C", 
-                sample.size = length(unique(budburst_2$year)))
+                sample.size = length(unique(budburst_Qrubra$year)))
