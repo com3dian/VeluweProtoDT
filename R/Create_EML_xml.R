@@ -10,6 +10,7 @@ library(emld)
 library(xml2)
 library(EML)
 library(ids)
+library(keyring)
 
 # 1. Fill in metadata ----------------------------------------------------
 
