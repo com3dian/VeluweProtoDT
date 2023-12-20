@@ -11,9 +11,8 @@ library(lubridate)
 library(tidyverse)
 library(taxize)
 
-# Get input data
-
 # Retrieve bud burst data files as list (including README) from Dataverse
+
 # Note: function `retrieve_dataverse_data()` comes from R/dataverse-api.R.
 dataverse_list <- retrieve_dataverse_data(dataset = "doi:10.80227/test-QMGPSW")
 
@@ -87,7 +86,7 @@ d_events_level1 <-
                 geodeticDatum = NA,
                 minimumElevationInMeters = NA,
                 maximumElevationInMeters = NA,
-                verbatimLocality" = areas_per_year$location[match(.$Year, areas_per_year$Year)]) %>%
+                verbatimLocality = areas_per_year$location[match(.$Year, areas_per_year$Year)]) %>%
   dplyr::rename("eventID" = "eventID_L1",
                 "year" = "Year")
 
