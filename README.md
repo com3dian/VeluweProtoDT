@@ -51,6 +51,8 @@ _Note: ticked boxes are FAIRified datasets._
 ### Veluwe proto-DT <a name="proto-dt">
 This project runs simultaneously to the start-up phase of LTER-LIFE. As such, we put the things we learned in this project to the test by developing a full but simplified workflow that might resemble the envisioned LTER-LIFE experience - a prototype digital twin. This proto-DT focusses on the timing of oak bud burst, derived from NIOO's bud burst dataset (i.e., the first dataset FAIRified as part of FDFDT), in relation to mean temperatures, derived from KNMI, visualised in the virtual research environment (VRE) built by LifeWatch; see [https://github.com/QCDIS/NaaVRE](https://github.com/QCDIS/NaaVRE).
 
+Find GitHub project here: [Veluwe proto-T](https://github.com/orgs/LTER-LIFE/projects/3)
+
 ## Style guide <a name="style-guide">
 The following guide describes the programming style that we use throughout this project. The goal of this guide is to make our code easier to read, share, and verify. Heavily influenced by the [tidyverse style guide](https://style.tidyverse.org/index.html).
 
@@ -138,6 +140,10 @@ If you find yourself running out of room, move to next line.
 
 #### Quoting text
 Try to stick to one quotation mark throughout the script. Preferred `" "`.
+
+#### Tidyverse quotations
+Use quotation marks around variable names when using functions that _select_ variables, such as `dplyr::select()`, `dplyr::rename()`, or `tidyr::pivot_longer()`.
+It is not necessary to use quotation marks around variable names when using functions that _filter_ or _change_ variables, such as `dplyr::filter()`, `dplyr::mutate()`, `dplyr::summarise()`.
 
 #### Logical
 Preferred `TRUE` and `FALSE` over `T` and `F`.
