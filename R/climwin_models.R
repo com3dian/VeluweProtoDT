@@ -47,11 +47,18 @@ budburst <- budburst %>%
 
 
 
-# III. Climwin analysis: Quercus robur --------------------------------------------
+# III. Climwin: Sliding window model --------------------------------------------
+
+# 1. Function to calculate the window in which bud burst data is best explained by temperature ####
+
+# Arguments
+# species: Character specifying the tree species by its scientific Name (with author information) as in the input data. For example, "Quercus robur L." 
+# reference_day: Numeric vector of 2 values specifying the day and month of the reference day before which climate windows are tested. For example, c(31, 5) for the 31st of March.
+# range: Numeric vector of 2 values specifying the range of days before the reference day in which climate windows are tested. For example, c(181, 0), meaning that windows between 181 days and 0 days before the reference day are tested.
 
 find_first_climate_window <- function(species,
-                                      range,
-                                      reference_day) {
+                                      reference_day,
+                                      range) {
   
   
   # filter input data for species  
@@ -69,24 +76,29 @@ find_first_climate_window <- function(species,
                                       func = "lin", 
                                       stat = "mean")  
   
-  # Ta
+  # Back calculation of the opening and closing day of the calculated window to calender dates
+  
+  # create a reference year for calculation of start and end date (can be any year that is not a leap year, as dates should be calculated on the basis of regular years)
   reference_year <- dplyr::if_else(condition = lubridate::leap_year(max(temp$year)), 
                                    true = max(temp$year) - 1, 
                                    false = max(temp$year))
   
+  # calculate calender date when window opens
   start_date <- lubridate::make_date(year = reference_year, 
                                      month = reference_day[2], 
                                      day = reference_day[1]) - first_window$combos[1,]$WindowOpen
   
+  # calculate calender date when window closes
   end_date <- lubridate::make_date(year = reference_year, 
                                    month = reference_day[2], 
                                    day = reference_day[1]) - first_window$combos[1,]$WindowClose
+  
   
   return(list(first_window, model_input, range, reference_day, start_date, end_date))
 }
 
 
-# calculate windows for each species of interest
+# 2. Ccalculate windows for each species of interest ####
 first_window_Qrobur <- find_first_climate_window(species = 'Quercus robur L.',
                                                  reference_day = c(31, 5),
                                                  range = c(181, 0))
@@ -96,29 +108,47 @@ first_window_Qrubra <- find_first_climate_window(species = 'Quercus rubra L.',
                                                  range = c(181, 0))
 
 
-
 # VI. Check significance of model -----------------------------------------
 # To account for over fitting and to check whether the selected window has been selected by chance, 
 # a randomization test on that window is performed. 
 
-first_window_Qrobur_rand <- climwin::randwin(repeats = 20, 
-                                             baseline = lm(DOY ~ year, data = budburst_Qrobur),
-                                             xvar = list(Temp = temp$temperature),
-                                             cdate = temp$factor_date, 
-                                             bdate = budburst_Qrobur$date,
-                                             type = "absolute", 
-                                             refday = refday,
-                                             spatial = list(budburst_Qrobur$locID, temp$locID),
-                                             range = range, 
-                                             func = "lin", 
-                                             stat = "mean")
+# 1. Function for climwin randomization ####
 
-# get the p-value of the randomization test
-climwin::pvalue(dataset = first_window_Qrobur[[1]]$Dataset, 
-                datasetrand = first_window_Qrobur_rand[[1]],
-                metric = "C", 
-                sample.size = length(unique(budburst_Qrobur$year)))
+# Arguments
+# x: Output of find_first_climate_window() 
+# repeats: Numeric specifying the number of repeats used in the randomization model of climwin. Default is set to 20. 
 
+randomization_climate_window <- function(x,
+                                         repeats = 20) {
+  
+  # Get components of x
+  model_input <- x$model_input
+  reference_day <- x$reference_day
+  range <- x$range
+  dataset <- x$first_window[[1]]$Dataset
+  
+  # Climate window analysis for randomised data
+  first_window_rand <- climwin::randwin(repeats = repeats, 
+                                        baseline = lm(DOY ~ year, data = model_input),
+                                        xvar = list(Temp = temp$temperature),
+                                        cdate = temp$factor_date, 
+                                        bdate = model_input$date,
+                                        type = "absolute", 
+                                        refday = reference_day,
+                                        spatial = list(model_input$locID, temp$locID),
+                                        range = range, 
+                                        func = "lin", 
+                                        stat = "mean")
+  
+  # get the p-value of the randomization test
+  climwin_p <- climwin::pvalue(dataset = dataset,
+                               datasetrand = first_window_rand[[1]],
+                               metric = "C", 
+                               sample.size = length(unique(model_input$year)))
+  
+  return(climwin_p)
+  
+}
 
 # V. Check for a second window ---------------------------------------------------------
 # There sometimes can be a second climate window that fits the data. To test for that, the data of the 
