@@ -21,26 +21,25 @@ climwin::plotall(second_window[[1]]$Dataset)
 # II. Compare model output with observed values --------------------------
 
 # get temperatures for selected window
-TempBB <- temp %>% 
+mean_temp_in_window <- temp %>% 
   dplyr::filter(dummy > (lubridate::month(start_date$date) * 100 + lubridate::day(start_date$date)) & 
-                  dummy < (lubridate::month(end_date$date) * 100 + lubridate::day(end_date$date)))
-
-MeanTempBB <- TempBB %>% 
+                  dummy < (lubridate::month(end_date$date) * 100 + lubridate::day(end_date$date))) %>%
   dplyr::summarise(mean_temp = mean(temperature, na.rm = TRUE), 
                    .by = c("year", "locID"))
 
 # get the model coefficients
 wind_coef <- coef(summary(first_window[[1]]$BestModel)) 
 
-# get equation describing the model & predict bud burst dates with that
-MeanTempBB$pred.bb_date <- (wind_coef[1,1] + wind_coef[2,1] * MeanTempBB$year) + (wind_coef[3,1] * MeanTempBB$mean_temp)
+# calculate predicted bud burst dates based on model coefficients
+mean_temp_in_window$pred.bb_date <- (wind_coef[1,1] + wind_coef[2,1] * mean_temp_in_window$year) + (wind_coef[3,1] * mean_temp_in_window$mean_temp)
 
-# plot predicted against observed values 
+# calculate mean annual bud burst date 
 obs_pred_bb <- db_2 %>% 
   summarise(mean_annual_bb_date = mean(avg_budburst_DOY), 
             .by = c("year", "locID")) %>% 
-  right_join(MeanTempBB, by = c("year", "locID"))
+  right_join(mean_temp_in_window, by = c("year", "locID"))
 
+# plot predicted against observed annual bud burst dates 
 ggplot2::ggplot(obs_pred_bb, aes(mean_annual_bb_date, pred.bb_date,  colour = locID)) +
   ggplot2::geom_point(size = 2) +
   ggplot2::geom_smooth(aes(colour = locID), method = "lm", se = FALSE) +
