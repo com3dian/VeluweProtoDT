@@ -2,7 +2,7 @@
 
 # Author: Stefan Vriend
 # Created: 2023-12-12
-# Last updated: 2023-12-19
+# Last updated: 2023-12-20
 
 
 # Load packages -----------------------------------------------------------
@@ -79,5 +79,15 @@ retrieve_dataverse_data <- function(dataset,
     return(data)
 
   }
+
+}
+
+# Retrieve bud burst data files as list (including README)
+data <- retrieve_dataverse_data(dataset = "doi:10.80227/test-QMGPSW")
+
+# Store each file as separate R objects for easier use in subsequent scripts
+for(i in 1:length(data)) {
+
+  assign(names(data)[i], data[[i]])
 
 }
