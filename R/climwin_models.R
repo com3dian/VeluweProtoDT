@@ -14,7 +14,7 @@ library(lubridate)
 
 # retrieve data
 temp <- read.csv(here::here("data", "temp_climwin_input.csv"))
-budburst <- read.csv(here::here("data", "budburst_climwin_input.csv"))
+avg_annual_budburst_dates <- read.csv(here::here("data", "budburst_climwin_input.csv"))
 
 
 # II. Date conversion to fit climwin  -------------------------------------
@@ -33,13 +33,13 @@ temp <- temp %>% mutate(date = lubridate::as_date(date),
 temp$factor_date <- as.factor(paste(temp$day, temp$month, temp$year, sep = "/"))
 
 # convert bud burst dates
-budburst$date_info <- paste(budburst$year, floor(budburst$avg_bud_burst_DOY))
-budburst$date <- strptime(budburst$date_info, "%Y %j")
-budburst$date <- as.factor(format(as.Date(budburst$date), "%d/%m/%Y"))
+avg_annual_budburst_dates$date_info <- paste(avg_annual_budburst_dates$year, floor(avg_annual_budburst_dates$avg_bud_burst_DOY))
+avg_annual_budburst_dates$date <- strptime(avg_annual_budburst_dates$date_info, "%Y %j")
+avg_annual_budburst_dates$date <- as.factor(format(as.Date(avg_annual_budburst_dates$date), "%d/%m/%Y"))
 
 # create numeric dates to be used in the baseline model &
 # and exclude location 7, as this labels trees without coordinates 
-budburst <- budburst %>% 
+avg_annual_budburst_dates <- avg_annual_budburst_dates %>% 
   dplyr::mutate(formatted_date = as.Date(as.character(date), format = "%d/%m/%Y"),
                 DOY = lubridate::yday(formatted_date)) %>%
   dplyr::filter(date != "NA", 
@@ -53,14 +53,12 @@ budburst <- budburst %>%
 
 # Arguments
 # biological_data: Tibble specifying the biological input data for the climate model, containing biological dates that are tested in format 'dd/mm/yyyy'. Only necessary when the first window is calculated.
-# species: Character specifying the tree species by its scientific Name (with author information) as in the input data. For example, "Quercus robur L.". 
 # reference_day: Numeric vector of 2 values specifying the day and month of the reference day before which climate windows are tested. For example, c(31, 5) for the 31st of March.
 # range: Numeric vector of 2 values specifying the range of days before the reference day in which climate windows are tested. For example, c(181, 0), meaning that windows between 181 days and 0 days before the reference day are tested.
 # window_number: Choice between "first" and "second", specifies whether the first best window should be calculated or a second window based on the first one.
 # first_window: Tibble containing the best model data of the first window/iteration of the function. Used as input data when second window should be calculated. 
 
 find_climate_window <- function(biological_data = NULL,
-                                species,
                                 range,
                                 reference_day,
                                 window_number = c("first", "second"),
@@ -75,9 +73,6 @@ find_climate_window <- function(biological_data = NULL,
       stop("If you want to find a first climate window, provide the biological data as `biological_data`.")
       
     }
-    
-    # filter biological data for species
-    biological_data <- biological_data %>% dplyr::filter(scientificName = species)
     
     # define baseline
     baseline <- lm(DOY ~ year, data = biological_data)
@@ -138,14 +133,14 @@ find_climate_window <- function(biological_data = NULL,
 
 
 ## 2. Calculate windows for each species of interest ####
-first_window_Qrobur <- find_climate_window(biological_data = budburst_2,
-                                           species = 'Quercus robur L.',
+first_window_Qrobur <- find_climate_window(biological_data = avg_annual_budburst_dates %>% 
+                                             dplyr::filter(stringr::str_detect(scientificName, "Quercus robur")) ,
                                            window_number = "first",
                                            reference_day = c(31, 5),
                                            range = c(181, 0))
 
-first_window_Qrubra <- find_climate_window(biological_data = budburst_2,
-                                           species = 'Quercus rubra L.',
+first_window_Qrubra <- find_climate_window(biological_data = avg_annual_budburst_dates %>%
+                                             dplyr::filter(stringr::str_detect(scientificName, "Quercus rubra")),
                                            reference_day = c(31, 5),
                                            range = c(181, 0),
                                            window_number = "first")
