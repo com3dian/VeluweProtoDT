@@ -32,14 +32,12 @@ temp <- read.csv(here::here("data", "Tg1_seasonalTemperature_Dec1987_to_June2023
 # The temperature data of the KNMI is gridded and for trees to be modeled with their 
 # respective temperatures, they first need to be matched to the temperature from the grid cell closest to them.  
 
-# get organismID & scientific name from occurrence file
-d_bb <- occ %>% 
-  dplyr::select("eventID", "organismID", "scientificName") %>% 
-  dplyr::right_join(event, by = "eventID", relationship = "many-to-many")
-
-# connect measurements with events (i.e., trees) & filter for Hoge Veluwe
-d_bb <- d_bb %>% 
+# get organismID & scientific name from occurrence file and connect measurements with events (i.e., trees)
+budburst <- dplyr::right_join(occ %>% 
+                                dplyr::select("eventID", "organismID", "scientificName"),
+                              event, by = "eventID", relationship = "many-to-many") %>%
   dplyr::left_join(bud_burst_dates, by = c("year", "scientificName", "organismID", "verbatimLocality")) %>% 
+  # filter for Hoge Veluwe
   dplyr::filter(verbatimLocality == "Hoge Veluwe")
 
 # get the distinct longitude and latitude for temperature
@@ -49,7 +47,7 @@ lon_lat_temp <- temp %>%
   dplyr::select("Longitude", "Latitude")
 
 # get all individual trees
-trees <- d_bb %>% 
+trees <- budburst %>% 
   dplyr::distinct(., organismID, .keep_all = TRUE) %>% 
   dplyr::filter(decimalLongitude != "NA")
 
@@ -61,21 +59,21 @@ tree_cord <- trees %>%
 ## 2. Map trees to temperature grid cells ####
 
 # calculate the geographic distance between each tree & each temperature coordinate pair 
-dist <- as.data.frame(geosphere::distm(tree_cord, lon_lat_temp))
+distance <- as.data.frame(geosphere::distm(tree_cord, lon_lat_temp))
 
 # find the minimum distance between tree and temperature coordinates
-dist$minPos <- apply(dist, 1, which.min)
+distance$minPos <- apply(distance, 1, which.min)
 
 # assign position name to coordinate pairs to match with positions of minimum value
 lon_lat_temp$Pos <- 1:nrow(lon_lat_temp)
 
 # assign coordinates of the temperature measures closest to each tree to bud burst data
-d_bb_1 <- dplyr::left_join(dist, lon_lat_temp, by = c("minPos" = "Pos")) %>% 
+budburst1 <- dplyr::left_join(distance, lon_lat_temp, by = c("minPos" = "Pos")) %>% 
   dplyr::select("Longitude", "Latitude") %>% 
   dplyr::rename(tempLon = "Longitude", tempLat = "Latitude") %>% 
   dplyr::bind_cols(trees, .) %>% 
   dplyr::select("organismID", "tempLon", "tempLat") %>%
-  dplyr::right_join(d_bb, by = "organismID")
+  dplyr::right_join(budburst, by = "organismID")
 
 
 
@@ -83,7 +81,7 @@ d_bb_1 <- dplyr::left_join(dist, lon_lat_temp, by = c("minPos" = "Pos")) %>%
 
 # locID for each temperature coordinate pair
 locID <-
-  d_bb_1 %>% 
+  budburst1 %>% 
   tidyr::unite("combcoord", tempLon, tempLat, sep = "_", remove = FALSE) %>%
   dplyr::distinct(., combcoord) %>%
   dplyr::mutate(locID = paste0("loc", c(1:length(combcoord))))
@@ -99,8 +97,8 @@ temp <-
 # IV. Annual average bud burst dates  ----------------------------
 
 # assign locID for bud burst measures and get annual average bud burst date per locID
-d_bb_2 <-
-  d_bb_1 %>% 
+avg_annual_budburst_dates <-
+  budburst1 %>% 
   tidyr::unite("combcoord", tempLon, tempLat, sep = "_", remove = FALSE) %>%
   dplyr::left_join(locID, by = "combcoord") %>%
   dplyr::group_by(locID, year, scientificName) %>%
@@ -112,7 +110,7 @@ d_bb_2 <-
 # V. Save output files ----------------------------------------------------
 
 # bud burst data 
-write.csv(d_bb_2, file = here::here("data", "budburst_climwin_input.csv"), sep = ',', row.names = FALSE)
+write.csv(avg_annual_budburst_dates, file = here::here("data", "budburst_climwin_input.csv"), sep = ',', row.names = FALSE)
 
 # temperature data
 write.csv(temp, file = here::here("data", "temp_climwin_input.csv"), sep = ',', row.names = FALSE)
