@@ -5,56 +5,67 @@
 # Last updated: 20/12/2023
 
 
-# load packages
+
+# I. Load packages  -------------------------------------------------------
+
 library(dplyr)
 library(ggplot2)
+library(ggpubr)
 
 
-# I. Plots integrated in climwin ------------------------------------------
+# II. Visualize output of climwin -----------------------------------------
 
-# First window analysis Quercus robur: plot AIC heat map
-climwin::plotdelta(first_window_Qrobur[[1]]$Dataset)
-climwin::plotall(first_window_Qrobur[[1]]$Dataset)
-
-# Second window analysis Quercus robur: plot AIC heat map
-climwin::plotdelta(second_window_Qrobur[[1]]$Dataset)
-climwin::plotall(second_window_Qrobur[[1]]$Dataset)
-
-# First window analysis Quercus rubra: plot AIC heat map
-climwin::plotdelta(first_window_Qrubra[[1]]$Dataset)
-climwin::plotall(first_window_Qrubra[[1]]$Dataset)
+## 1. Function to create two plots for the output of the climwin model ####
+# Arguments
+# biological_data: Tibble specifying the biological input data that was used for the climate model in function "find_climate_window()" . 
+# window_output: Output list of function "find_climate_window()".
 
 
-# II. Compare model output with observed values --------------------------
+plot_climwin_output <- function(biological_data,
+                       window_output){
+ 
+  # create a heat map of model delta AICc values
+  AIC_heatmap <- climwin::plotdelta(dataset = window_output$best_window[[1]]$Dataset, arrow = TRUE) +
+    ggplot2::theme_classic() +
+    ggplot2::labs(subtitle = biological_data$scientificName %>% unique())
+  
+  
+  # get annual mean temperatures of the best window
+  mean_temp_in_window <- temp %>% 
+    dplyr::filter(dummy > (lubridate::month(window_output$start_date) * 100 + lubridate::day(window_output$start_date)) & 
+                    dummy < (lubridate::month(window_output$end_date) * 100 + lubridate::day(window_output$end_date))) %>%
+    dplyr::summarise(mean_temp = mean(temperature, na.rm = TRUE), 
+                     .by = c("year", "locID"))
+  
+  # add mean temperatures to annual bud burst data
+  annual_budburst_and_temp <- dplyr::left_join(biological_data,
+                                               mean_temp_in_window %>%
+                                                 dplyr::select("year", "mean_temp", "locID"), 
+                                               by = c("year", "locID"))
+  
+  # plot annual mean temperatures of the best window against annual average bud burst dates
+  plot_budburst_temperature<-  ggplot2::ggplot(annual_budburst_and_temp, aes(mean_temp, avg_bud_burst_DOY, colour = locID)) +
+    ggplot2::geom_point(size = 2) +
+    ggplot2::geom_smooth(method = "lm", se = F) +
+    ggplot2::theme_classic() +
+    ggplot2::labs(subtitle = biological_data$scientificName %>% unique(),
+                  title = "Annual bud burst date ~ annual mean temperature in best window",
+                  x = "Mean temperature [°C]",
+                  y = "Annual mean bud burst date")
 
-# get temperatures for selected window
-mean_temp_in_window <- temp %>% 
-  dplyr::filter(dummy > (lubridate::month(start_date$date) * 100 + lubridate::day(start_date$date)) & 
-                  dummy < (lubridate::month(end_date$date) * 100 + lubridate::day(end_date$date))) %>%
-  dplyr::summarise(mean_temp = mean(temperature, na.rm = TRUE), 
-                   .by = c("year", "locID"))
+  # arrange both plots in one figure  
+  ggpubr::ggarrange(AIC_heatmap,  plot_budburst_temperature)
+  
+}
 
-# get the model coefficients
-wind_coef_Qrobur <- coef(summary(first_window_Qrobur[[1]]$BestModel)) 
+## 2. Call function and create plots ####
 
-# calculate predicted bud burst dates based on model coefficients
-mean_temp_in_window$pred.bb_date <- (wind_coef_Qrobur[1,1] + wind_coef_Qrobur[2,1] * mean_temp_in_window$year) + (wind_coef_Qrobur[3,1] * mean_temp_in_window$mean_temp)
+Fig_Qrubra <- plot_climwin_output(biological_data = avg_annual_budburst_dates %>%
+                           dplyr::filter(stringr::str_detect(scientificName, "Quercus robur")),
+                         window_output = first_window_Qrobur)
 
-# calculate mean annual bud burst date 
-obs_pred_bb_Qrobur <- budburst_Qrobur %>% 
-  summarise(mean_annual_bb_date = mean(avg_bud_burst_DOY), 
-            .by = c("year", "locID")) %>% 
-  right_join(mean_temp_in_window, by = c("year", "locID"))
+Fig_Qrubra <- plot_climwin_output(biological_data = avg_annual_budburst_dates %>%
+                           dplyr::filter(stringr::str_detect(scientificName, "Quercus rubra")),
+                         window_output = first_window_Qrubra)
 
-# plot predicted against observed annual bud burst dates 
-ggplot2::ggplot(obs_pred_bb_Qrobur, aes(mean_annual_bb_date, pred.bb_date,  colour = locID)) +
-  ggplot2::geom_point(size = 2) +
-  ggplot2::geom_smooth(aes(colour = locID), method = "lm", se = FALSE) +
-  ggplot2::theme_classic() +
-  ggplot2::labs(title = "Predicted & observed bud burst dates of Q. robur", 
-                subtitle = "Climate window: 04/04 to 08/05",
-                y = "predicted bud burst date [day of the year]",
-                x = "observed annual bud burst date [day of the year]") +
-  ggplot2::xlim(90, 130) +
-  ggplot2::ylim(90, 130) 
 
