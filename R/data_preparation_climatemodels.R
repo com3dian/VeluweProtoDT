@@ -11,6 +11,7 @@ library(dplyr)
 library(geosphere)
 library(here)
 library(tidyr)
+library(lubridate)
 
 # Read in DwC-A tables
 event <- read.csv(here::here("data", "event.txt"), sep = "\t")
