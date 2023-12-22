@@ -14,9 +14,9 @@ library(tidyr)
 library(lubridate)
 
 # Read in DwC-A tables
-event <- read.csv(here::here("data", "event.txt"), sep = "\t")
-occ <- read.csv(here::here("data","occurrence.txt"), sep = "\t")
-mof <- read.csv(here::here("data","extendedmeasurementorfact.txt"), sep = "\t")
+event <- read.csv(here::here("data", "event.csv"))
+occ <- read.csv(here::here("data","occurrence.csv"))
+mof <- read.csv(here::here("data","extendedmeasurementorfact.csv"))
 
 #  Read in processed bud burst data
 bud_burst_dates <- read.csv(here::here("data","annual_budburst_per_tree.csv"))
