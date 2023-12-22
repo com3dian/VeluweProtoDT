@@ -32,7 +32,7 @@ create_meta_xml <- function(core,
     purrr::map(.f = ~{
 
       .x |>
-        pivot_wider(names_from = "X1", values_from = "X2")
+        tidyr::pivot_wider(names_from = "X1", values_from = "X2")
 
     }) |>
     dplyr::bind_rows() |>
@@ -140,7 +140,7 @@ create_meta_xml <- function(core,
                    extension_number <- ..3
 
                    # Add header
-                   xml2::xml_children(meta)[extension_number+1] |>
+                   xml2::xml_children(meta)[extension_number + 1] |>
                      xml2::xml_add_child(.value = "id",
                                          "index" = "0")
 
@@ -149,7 +149,7 @@ create_meta_xml <- function(core,
                                 .y = seq_len(length(names(extension_file))),
                                 .f = ~{
 
-                                  xml2::xml_add_child(.x = xml2::xml_children(meta)[extension_number+1],
+                                  xml2::xml_add_child(.x = xml2::xml_children(meta)[extension_number + 1],
                                                       .value = "field",
                                                       "index" = .y,
                                                       "term" = assign_uri(.x))
