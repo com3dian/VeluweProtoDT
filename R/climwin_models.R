@@ -214,3 +214,8 @@ p_Qrobur_secondwin <- randomization_climate_window(x = second_window_Qrobur)
 # get p-values for both windows Quercus rubra
 p_Qrubra_firstwin <- randomization_climate_window(x = first_window_Qrubra)
 p_Qrubra_secondwin <- randomization_climate_window(x = second_window_Qrubra)
+
+
+## 3. Save model outputs of first and second window
+save(first_window_Qrobur, second_window_Qrobur, file = here::here("data", "climwin_outputs_Qrobur.rda"))
+save(first_window_Qrubra, second_window_Qrubra, file = here::here("data", "climwin_outputs_Qrubra.rda"))
