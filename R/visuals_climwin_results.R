@@ -5,12 +5,15 @@
 # Last updated: 2023-12-22
 
 
-# I. Load packages  -------------------------------------------------------
+# I. Load packages and data  ----------------------------------------------
 
 library(dplyr)
 library(ggplot2)
 library(ggpubr)
 
+# Load model output data 
+load(here::here("data", "climwin_outputs_Qrobur.rda"))
+load(here::here("data", "climwin_outputs_Qrubra.rda"))
 
 # II. Visualize output of climwin -----------------------------------------
 
