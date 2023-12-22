@@ -37,7 +37,7 @@ temp <- read.csv(here::here("data", "Tg1_seasonalTemperature_Dec1987_to_June2023
 budburst <- dplyr::right_join(occ %>%
                                 dplyr::select("eventID", "organismID", "scientificName"),
                               event, by = "eventID", relationship = "many-to-many") %>%
-  dplyr::left_join(bud_burst_dates, by = c("year", "scientificName", "organismID", "verbatimLocality")) %>%
+  dplyr::right_join(bud_burst_dates, by = c("year", "scientificName", "organismID", "verbatimLocality")) %>%
   # filter for Hoge Veluwe
   dplyr::filter(verbatimLocality == "Hoge Veluwe")
 
@@ -96,9 +96,8 @@ temp <-
 avg_annual_budburst_dates <-
   budburst1 %>%
   dplyr::left_join(temp_locations, by = c("tempLat", "tempLon")) %>%
-  dplyr::group_by(locID, year, scientificName) %>%
   dplyr::summarise(avg_bud_burst_DOY = mean(bud_burst_DOY, na.rm = TRUE),
-                   .groups = "drop") %>%
+                   .by = c("locID", "year", "scientificName")) %>%
   dplyr::mutate(avg_bud_burst_date = avg_bud_burst_DOY + lubridate::make_date(year, 1, 1) - 1)
 
 # V. Save output files ----------------------------------------------------
