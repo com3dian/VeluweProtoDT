@@ -181,7 +181,7 @@ event <-
   dplyr::mutate(verbatimLocality = stringr::str_replace(string = verbatimLocality, pattern = "_", replacement = " "))
 
 # Save file as text file
-write.table(event, file = "data/event.txt", sep = "\t", row.names = FALSE)
+write.csv(event, file = here::here("data", "event.csv"), row.names = FALSE)
 
 
 # Part III. Create occurrence table ---------------------------------------
@@ -263,7 +263,7 @@ occurrence <-
                 "family", "genus", "specificEpithet")
 
 # Save file as text file
-write.table(occurrence, file = "data/occurrence.txt", sep = "\t", row.names = FALSE)
+write.csv(occurrence, file = here::here("data", "occurrence.csv"), row.names = FALSE)
 
 # Part IV: Create Measurement or fact file --------------------------------
 
@@ -303,4 +303,4 @@ measurement_or_fact <-
                 "measurementUnit", "measurementMethod", "measurementRemarks")
 
 # Save file as text file
-write.table(measurement_or_fact, file = "data/extendedmeasurementorfact.txt", sep = "\t", row.names = FALSE)
+write.csv(measurement_or_fact, file = here::here("data", "extendedmeasurementorfact.csv"), row.names = FALSE)
