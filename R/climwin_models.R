@@ -31,6 +31,7 @@ temp <- temp %>%
                 month = lubridate::month(date),
                 day = lubridate::day(date),
                 doy = lubridate::yday(date),
+                # Create dummy for filtering window later. Format: 312 = March 12, 401 = April 1
                 dummy = month * 100 + day,
                 factor_date = as.factor(paste(day, month, year, sep = "/")))
 
@@ -207,7 +208,7 @@ randomization_climate_window <- function(x,
 ## 2. Calculate p-values for each window ####
 
 # get p-values for both windows of Quercus robur
-p_Qrobur_firstwin <- randomization_climate_window(x = first_window_Qrobur, repeats = 3)
+p_Qrobur_firstwin <- randomization_climate_window(x = first_window_Qrobur)
 p_Qrobur_secondwin <- randomization_climate_window(x = second_window_Qrobur)
 
 # get p-values for both windows Quercus rubra
