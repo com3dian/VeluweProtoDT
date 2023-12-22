@@ -3,47 +3,178 @@
 
 # Author: Stefan Vriend
 # Created: 2023-12-20
-# Last updated: 2023-12-21
+# Last updated: 2023-12-22
 
 # Load packages
 library(xml2)
-
+library(tidyverse)
+library(rvest)
+library(httr)
+library(jsonlite)
 
 # Function to create meta.xml from Darwin Core tables ---------------------
 
 # Arguments:
-# - core: Character string specifying the file location of the core table.
-# - extension: (optional) Character string specifyin the file locations of the extension tables.
+# - core: Named vector specifying the DwC name of the core table and the file path of the core table.
+#   For example, c("Event" = "C:\\Users\\event.csv").
+# - extension: (optional) Named vector specifying the names and the file locations of the extension tables.
+#   For example, c("Occurrence" = "C:\\Users\\occurrence.csv", "ExtendedMeasurementOrFact" = "C:\\Users\\emof.csv")
+# - file: Character string specifying the file path and file name of the output xml
 
 create_meta_xml <- function(core,
-                            extensions = NULL) {
+                            extensions = NULL,
+                            file) {
 
-  # A DwC-Archive must contain exactly one <core> element, representing the core table.
+  # Check if supplied name(s) of the table(s) exist(s) in DwC namespace
+  dwc_namespace_classes <- httr::GET("https://rs.gbif.org/extensions.html") |>
+    httr::content() |>
+    rvest::html_table() |>
+    purrr::map(.f = ~{
+
+      .x |>
+        pivot_wider(names_from = "X1", values_from = "X2")
+
+    }) |>
+    dplyr::bind_rows() |>
+    dplyr::select("Name", "Namespace", "RowType")
+
+  core_names <- dwc_namespace_classes |>
+    dplyr::filter(Name %in% c("Event", "Occurrence", "Taxon")) |>
+    dplyr::pull("Name")
+
+  if(!(names(core) %in% core_names)) {
+
+    stop("Please provide a core table name that exists in the Darwin Core namespace. Check 'https://rs.gbif.org/extensions.html' for all options.")
+
+  }
+
+  if(!is.null(extensions) && any(!(names(extensions) %in% dwc_namespace_classes$Name))) {
+
+    stop("Please provide an extension table name that exists in the Darwin Core namespace. Check 'https://rs.gbif.org/extensions.html' for all options.")
+
+  }
+
+  # Create a new XML document with root <archive>
+  meta <- xml2::xml_new_root(.value = "archive",
+                             .version = "1.0",
+                             .encoding = "UTF-8",
+                             # Set namespace arguments
+                             "xlmns" = "http://rs.tdwg.org/dwc/terms",
+                             "xlmns:xsi" = "http://www.w3.org/2001/XMLSchema-instance",
+                             "xmlns:xs" = "http://www.w3.org/2001/XMLSchema",
+                             "xsi:schemaLocation" = "http://rs.tdwg.org/dwc/text/ http://rs.tdwg.org/dwc/text/tdwg_dwc_text.xsd")
+
+  # A DwC-Archive must contain exactly one <core> element, representing the core table
+  xml2::xml_add_child(.x = meta,
+                      .value = "core",
+                      # Set arguments
+                      "encoding" = "UTF-8",
+                      "fieldsTerminatedBy" = ",",
+                      "linesTerminatedBy" = "\\n",
+                      "fieldsEnclosedBy" = "",
+                      "ignoreHeaderLines" = "1",
+                      "rowType" = dwc_namespace_classes |>
+                        dplyr::filter(Name == names(core)) |>
+                        dplyr::pull("RowType")) |>
+    # Add file name
+    xml2::xml_add_child(.value = "files") |>
+    xml2::xml_add_child(.value = "location",
+                        basename(core)) # Retain name and extension of file without path
+
+  # Read in core table
+  core_file <- read.csv(core, sep = "\t")
+
+  # Add header
+  xml2::xml_children(meta) |>
+    xml2::xml_add_child(.value = "id",
+                        "index" = "0")
+
+  # Add namespace of each variable in core
+  purrr::walk2(.x = rev(names(core_file)),
+               .y = rev(seq_len(length(names(core_file)))),
+               .f = ~{
+
+                 xml2::xml_add_sibling(.x = xml2::xml_children(xml2::xml_children(meta))[2],
+                                       .value = "field",
+                                       "index" = .y,
+                                       "term" = assign_uri(.x))
+
+               })
 
   # A DwC-Archive may contain zero or more <extension> elements, each representing an individual extension table.
+  if(!is.null(extensions)) {
 
+    # Loop through extensions
+    purrr::walk2(.x = names(extensions),
+                 .y = extensions,
+                 .f = ~{
 
+                   extension <- .x
 
+                   xml2::xml_add_child(.x = meta,
+                                       .value = "extension",
+                                       # Set arguments
+                                       "encoding" = "UTF-8",
+                                       "fieldsTerminatedBy" = ",",
+                                       "linesTerminatedBy" = "\\n",
+                                       "fieldsEnclosedBy" = "",
+                                       "ignoreHeaderLines" = "1",
+                                       "rowType" = dwc_namespace_classes |>
+                                         dplyr::filter(Name == extension) |>
+                                         dplyr::pull("RowType")) |>
+                     # Add file name
+                     xml2::xml_add_child(.value = "files") |>
+                     xml2::xml_add_child(.value = "location",
+                                         basename(.y)) # Retain name and extension of file without path
 
+                 })
 
+    # Loop through extensions oncemore to add header and variable namespace
+    purrr::pwalk(.l = list(names(extensions),
+                           extensions,
+                           seq_len(length(extensions))),
+                 .f = ~{
 
+                   # Read in extension table
+                   extension_file <- read.csv(..2, sep = "\t")
+                   extension_number <- ..3
 
+                   # Add header
+                   xml2::xml_children(meta)[extension_number+1] |>
+                     xml2::xml_add_child(.value = "id",
+                                         "index" = "0")
+
+                   # Add namespace of each variable in extension
+                   purrr::walk2(.x = names(extension_file),
+                                .y = seq_len(length(names(extension_file))),
+                                .f = ~{
+
+                                  xml2::xml_add_child(.x = xml2::xml_children(meta)[extension_number+1],
+                                                      .value = "field",
+                                                      "index" = .y,
+                                                      "term" = assign_uri(.x))
+
+                                })
+
+                 })
+
+  }
+
+  # TODO Validate
+  # xml2::xml_validate(meta, schema = xml2::read_xml("http://rs.tdwg.org/dwc/text/tdwg_dwc_text.xsd"))
+
+  # Save xml
+  xml2::write_xml(meta, file)
 
 }
 
-meta <- xml2::xml_new_root(.value = "archive",
-                           .version = "1.0",
-                           .encoding = "UTF8")
+create_meta_xml(core, extensions, file = here::here("data", "meta.xml"))
 
 
-
-xml2::write_xml(meta, "meta.xml")
-
-
-# Function to verify whether a url exists ---------------------------------
+# Functions to find a variable's namespace and assign its URI -------------
 
 # Function to validate url, wrapped in purrr::safely() to capture errors easily
-# Typically only used within `assign_uri()`
+# This function is typically only used inside `assign_uri()`
 try_url <- purrr::safely(.f = ~{
 
   url_head <- httr::HEAD(.x)
@@ -69,6 +200,9 @@ try_url <- purrr::safely(.f = ~{
 }, otherwise = NULL)
 
 # Assign uri to term. Either Darwin Core, Dublin Core, or self-assigned.
+# Argument
+# - term: Character specifying the name of the variable for which we find the associated namespace and resource identifier
+
 assign_uri <- function(term) {
 
   # Try Darwin Core
@@ -107,7 +241,13 @@ assign_uri <- function(term) {
       # Ask user for URI
     } else {
 
-      uri <- readline(paste0("The term `", term, "` does not match one of the expected metadata schema, please provide the URI of this term:"))
+      cat(paste0("The term `", term, "` does not match one of the expected metadata schema."))
+      domain <- readline("Please provide the URI of this term (without quotation marks): ")
+
+      uri <- paste0(domain,
+                    dplyr::if_else(stringr::str_ends(string = domain,
+                                                     pattern = "/"), "", "/"),
+                    term)
 
     }
 
