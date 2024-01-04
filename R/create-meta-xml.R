@@ -3,7 +3,7 @@
 
 # Author: Stefan Vriend
 # Created: 2023-12-20
-# Last updated: 2023-12-22
+# Last updated: 2024-01-04
 
 # Load packages
 library(xml2)
@@ -59,8 +59,8 @@ create_meta_xml <- function(core,
                              .version = "1.0",
                              .encoding = "UTF-8",
                              # Set namespace arguments
-                             "xlmns" = "http://rs.tdwg.org/dwc/terms",
-                             "xlmns:xsi" = "http://www.w3.org/2001/XMLSchema-instance",
+                             "xmlns" = "http://rs.tdwg.org/dwc/text/",
+                             "xmlns:xsi" = "http://www.w3.org/2001/XMLSchema-instance",
                              "xmlns:xs" = "http://www.w3.org/2001/XMLSchema",
                              "xsi:schemaLocation" = "http://rs.tdwg.org/dwc/text/ http://rs.tdwg.org/dwc/text/tdwg_dwc_text.xsd")
 
@@ -84,10 +84,13 @@ create_meta_xml <- function(core,
   # Read in core table
   core_file <- read.csv(core, sep = "\t")
 
-  # Add header
+  # Get core ID, i.e., the identifier of a record in the core table
+  core_id <- paste0(tolower(names(core)), "ID")
+
+  # Add header, and indicate which column indicates the coreID
   xml2::xml_children(meta) |>
     xml2::xml_add_child(.value = "id",
-                        "index" = "0")
+                        "index" = paste(which(names(core_file) == core_id) - 1))
 
   # Add namespace of each variable in core
   purrr::walk2(.x = rev(names(core_file)),
@@ -139,10 +142,10 @@ create_meta_xml <- function(core,
                    extension_file <- read.csv(..2, sep = "\t")
                    extension_number <- ..3
 
-                   # Add header
+                   # Add header, and indicate which column indicates the coreID
                    xml2::xml_children(meta)[extension_number + 1] |>
-                     xml2::xml_add_child(.value = "id",
-                                         "index" = "0")
+                     xml2::xml_add_child(.value = "coreid",
+                                         "index" = paste(which(names(extension_file) == core_id) - 1))
 
                    # Add namespace of each variable in extension
                    purrr::walk2(.x = names(extension_file),
@@ -160,16 +163,23 @@ create_meta_xml <- function(core,
 
   }
 
-  # TODO Validate
-  # xml2::xml_validate(meta, schema = xml2::read_xml("http://rs.tdwg.org/dwc/text/tdwg_dwc_text.xsd"))
-
   # Save xml
   xml2::write_xml(meta, file)
 
+  # Validate xml
+  valid <- suppressWarnings({
+    xml2::xml_validate(x = xml2::read_xml(file),
+                       schema = xml2::read_xml("https://dwc.tdwg.org/text/tdwg_dwc_text.xsd"))
+  })
+
+  if(!valid) {
+
+    file.remove(file)
+    stop("The generated XML is not schema-valid.")
+
+  }
+
 }
-
-create_meta_xml(core, extensions, file = here::here("data", "meta.xml"))
-
 
 # Functions to find a variable's namespace and assign its URI -------------
 
@@ -256,3 +266,11 @@ assign_uri <- function(term) {
   return(uri)
 
 }
+
+
+# Create meta.xml for bud burst DwC-A -------------------------------------
+
+create_meta_xml(core = c("Event" = here::here("data", "event.txt")),
+                extensions = c("ExtendedMeasurementOrFact" = here::here("data", "extendedmeasurementorfact.txt"),
+                               "Occurrence" = here::here("data", "occurrence.txt")),
+                file = here::here("data", "meta.xml"))
