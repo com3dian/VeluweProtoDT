@@ -1,7 +1,7 @@
 # Get daily weather data through KNMI EDR API
 # Author: Stefan Vriend
 # Created: 2023/11/20
-# Last updated: 2023/12/19
+# Last updated: 2023/12/22
 
 # Environmental Data Retrieval (EDR)
 # https://developer.dataplatform.knmi.nl/edr-api
@@ -19,7 +19,7 @@ library(stringr)
 library(httr)
 library(jsonlite)
 
-# Function to retrieve data from the EDR API ------------------------------
+# I. Function to retrieve data from the EDR API ------------------------------
 
 # Arguments:
 # bbox: spatial bounding box for which to retrieve data. Vector of four numeric values, indicating western-most, southern-most, eastern-most and northern-most point of the bounding box (in decimal degrees).
@@ -69,15 +69,11 @@ retrieve_knmi_edr_data <- function(bbox,
                                       "&parameter-name=",
                                       knmi_var_lookup |> dplyr::filter(var_name == variable) |> dplyr::pull("parameter"),
                                       "&datetime=",
-                                      paste(stringr::str_sub(string = start_date, start = 1, end = 4),
-                                            stringr::str_sub(string = start_date, start = 6, end = 7),
-                                            stringr::str_sub(string = start_date, start = 9, end = 10), sep = "-"), "T",
+                                      start_date, "T",
                                       stringr::str_replace_all(string = start_time,
                                                                pattern = ":",
                                                                replacement = "%3A"), "Z%2F",
-                                      paste(stringr::str_sub(string = end_date, start = 1, end = 4),
-                                            stringr::str_sub(string = end_date, start = 6, end = 7),
-                                            stringr::str_sub(string = end_date, start = 9, end = 10), sep = "-"), "T",
+                                      end_date, "T",
                                       stringr::str_replace_all(string = end_time,
                                                                pattern = ":",
                                                                replacement = "%3A"), "Z"),
@@ -100,11 +96,15 @@ retrieve_knmi_edr_data <- function(bbox,
 
 }
 
+
+
+# II. Get temperature data for desired spatiotemporal parameters ---------
+
 # Define bounding box for Veluwe site
 bbox <- c(5.824436777442551, 52.032393019069225, 5.870356194968013, 52.046647934312794)
 
 # Retrieve data for 1988 to 2023
-temp_data <- purrr::map(.x = 1988:2023,
+temp <- purrr::map(.x = 1988:2023,
                         .f = ~{
 
                           # Retrieve data for period 1 (1 Dec to 1 March)
@@ -142,3 +142,7 @@ temp_data <- purrr::map(.x = 1988:2023,
                         },
                         .progress = TRUE) |>
   purrr::list_c()
+
+
+# save temperature data 
+write.csv(temp, here::here("data", "Tg1_seasonalTemperature_Dec1987_to_June2023.csv"), row.names = FALSE)

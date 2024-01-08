@@ -11,9 +11,9 @@ library(tidyverse)
 library(here)
 
 # Load DwC-A files
-event <- read.csv(here::here("data", "event.txt"), sep = "\t")
-occ <- read.csv(here::here("data", "occurrence.txt"), sep = "\t")
-mof <- read.csv(here::here("data", "extendedmeasurementorfact.txt"), sep = "\t")
+event <- read.csv(here::here("data", "event.csv"))
+occ <- read.csv(here::here("data", "occurrence.csv"))
+mof <- read.csv(here::here("data", "extendedmeasurementorfact.csv"))
 
 # Connect measurements with events (i.e., trees)
 d_bb <- dplyr::left_join(event, mof, by = "eventID")
