@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<eml:eml xmlns:eml="https://eml.ecoinformatics.org/eml-2.2.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:stmml="http://www.xml-cml.org/schema/stmml-1.2" packageId="105c879f-a2b1-478f-9abf-56f79d0bbb9f" system="uuid" xsi:schemaLocation="https://eml.ecoinformatics.org/eml-2.2.0 https://eml.ecoinformatics.org/eml-2.2.0/eml.xsd">
+  <dataset>
+    <title xml:lang="en">Bud burst data of department of Animal Ecology/NIOO-KNAW</title>
+    <creator>
+      <organizationName>Department of Animal Ecology, Netherlands Institute of Ecology (NIOO-KNAW)</organizationName>
+      <positionName>Databank manager</positionName>
+      <address>
+        <city>Wageningen</city>
+        <country>NL</country>
+      </address>
+      <electronicMailAddress>AnE_Database@nioo.knaw.nl</electronicMailAddress>
+      <onlineUrl>https://nioo.knaw.nl/en/facilities/hole-breeding-passerines-monitoring-hoge-veluwe </onlineUrl>
+    </creator>
+    <metadataProvider>
+      <individualName>
+        <givenName>Cherine</givenName>
+        <surName>Jantzen</surName>
+      </individualName>
+      <organizationName>Netherlands Institute of Ecology (NIOO-KNAW)</organizationName>
+      <address>
+        <city>Wageningen</city>
+        <country>NL</country>
+      </address>
+      <electronicMailAddress>C.Jantzen@nioo.knaw.nl</electronicMailAddress>
+    </metadataProvider>
+    <pubDate>2023-12-19</pubDate>
+    <language>en</language>
+    <abstract>
+      <para>The stage of bud burst has been measured from 1988 onwards on several tree species in different areas across the Netherlands to record the phenology of the trees.</para>
+    </abstract>
+    <keywordSet>
+      <keyword>bud burst</keyword>
+      <keyword>trees</keyword>
+      <keyword>ecology</keyword>
+      <keyword>plant phenology</keyword>
+      <keywordThesaurus>envThes</keywordThesaurus>
+    </keywordSet>
+    <keywordSet>
+      <keyword>oak</keyword>
+      <keywordThesaurus>GEMET</keywordThesaurus>
+    </keywordSet>
+    <licensed>
+      <licenseName>Creative Commons Attribution 4.0 International (CC BY 4.0)</licenseName>
+      <url>https://creativecommons.org/licenses/by/4.0/</url>
+    </licensed>
+    <coverage>
+      <geographicCoverage>
+        <geographicDescription>Several sites across the Netherlands have been sampled: The Nationalpark Hoge Veluwe, Oosterhout, Warnsborn, Doorwerth, Bennekom, Buunderkamp, Wolfheze, Rhene, Heveadorp, Goffert, Kernhem, Loenen</geographicDescription>
+        <boundingCoordinates>
+          <westBoundingCoordinate>5.574453</westBoundingCoordinate>
+          <eastBoundingCoordinate>6.019378</eastBoundingCoordinate>
+          <northBoundingCoordinate>52.116720</northBoundingCoordinate>
+          <southBoundingCoordinate>51.821770</southBoundingCoordinate>
+        </boundingCoordinates>
+      </geographicCoverage>
+      <temporalCoverage>
+        <rangeOfDates>
+          <beginDate>
+            <calendarDate>1988-04-21</calendarDate>
+          </beginDate>
+          <endDate>
+            <calendarDate>2023-05-21</calendarDate>
+          </endDate>
+        </rangeOfDates>
+      </temporalCoverage>
+      <taxonomicCoverage>
+        <generalTaxonomicCoverage>Data covers a range of tree species that are either unknown or identified to species level.</generalTaxonomicCoverage>
+        <taxonomicClassification>
+          <taxonRankName>Species</taxonRankName>
+          <taxonRankValue>Quercus robur</taxonRankValue>
+          <commonName>Pedunculate oak</commonName>
+          <taxonId provider="https://www.gbif.org/">2878688</taxonId>
+        </taxonomicClassification>
+        <taxonomicClassification>
+          <taxonRankName>Species</taxonRankName>
+          <taxonRankValue>Quercus rubra</taxonRankValue>
+          <commonName>Northern red oak</commonName>
+          <taxonId provider="https://www.gbif.org/">2880539</taxonId>
+        </taxonomicClassification>
+        <taxonomicClassification>
+          <taxonRankName>Species</taxonRankName>
+          <taxonRankValue>Betula pendula</taxonRankValue>
+          <commonName>Silver birch</commonName>
+          <taxonId provider="https://www.gbif.org/">5331916</taxonId>
+        </taxonomicClassification>
+        <taxonomicClassification>
+          <taxonRankName>Species</taxonRankName>
+          <taxonRankValue>Larix kaempferi</taxonRankValue>
+          <commonName>Japanese larch</commonName>
+          <taxonId provider="https://www.gbif.org/">2686157</taxonId>
+        </taxonomicClassification>
+        <taxonomicClassification>
+          <taxonRankName>Species</taxonRankName>
+          <taxonRankValue>Pinus sylvestris</taxonRankValue>
+          <commonName>Scots pine</commonName>
+          <taxonId provider="https://www.gbif.org/">5285637</taxonId>
+        </taxonomicClassification>
+        <taxonomicClassification>
+          <taxonRankName>Phylum</taxonRankName>
+          <taxonRankValue>Tracheophyta</taxonRankValue>
+          <commonName>Vascular plants</commonName>
+          <taxonId provider="https://www.gbif.org/">7707728</taxonId>
+        </taxonomicClassification>
+      </taxonomicCoverage>
+    </coverage>
+    <maintenance>
+      <description>
+        <para>Data is updated after annual data collection.</para>
+      </description>
+      <maintenanceUpdateFrequency>annually</maintenanceUpdateFrequency>
+    </maintenance>
+    <contact>
+      <organizationName>Department of Animal Ecology, Netherlands Institute of Ecology (NIOO-KNAW)</organizationName>
+      <positionName>Databank manager</positionName>
+      <address>
+        <city>Wageningen</city>
+        <country>NL</country>
+      </address>
+      <electronicMailAddress>AnE_Database@nioo.knaw.nl</electronicMailAddress>
+    </contact>
+    <methods>
+      <methodStep>
+        <description>
+          <para>Bud burst state is visually assessed twice a week from the beginning of April onwards.</para>
+        </description>
+      </methodStep>
+      <methodStep>
+        <description>
+          <para>In the years 1989, 1990, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, bud burst was scored on a scale from 0 to 3 with increments of 0.25. In all other years, only increments of 0.5 were allowed. On this scale, 0 means that buds are not yet green, 0.5 means buds are swollen, 1 means buds are green and swollen, 2 means small leaves are sticking out and 3 means that leaves are bended at the leafbase. This score is assigned to both the lower part of the tree and the top of the tree.</para>
+        </description>
+      </methodStep>
+    </methods>
+  </dataset>
+</eml:eml>
