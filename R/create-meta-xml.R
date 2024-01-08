@@ -3,7 +3,7 @@
 
 # Author: Stefan Vriend
 # Created: 2023-12-20
-# Last updated: 2024-01-04
+# Last updated: 2024-01-08
 
 # Load packages
 library(xml2)
