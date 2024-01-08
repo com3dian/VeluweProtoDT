@@ -82,7 +82,7 @@ create_meta_xml <- function(core,
                         basename(core)) # Retain name and extension of file without path
 
   # Read in core table
-  core_file <- read.csv(core, sep = "\t")
+  core_file <- read.csv(core)
 
   # Get core ID, i.e., the identifier of a record in the core table
   core_id <- paste0(tolower(names(core)), "ID")
@@ -139,7 +139,7 @@ create_meta_xml <- function(core,
                  .f = ~{
 
                    # Read in extension table
-                   extension_file <- read.csv(..2, sep = "\t")
+                   extension_file <- read.csv(..2)
                    extension_number <- ..3
 
                    # Add header, and indicate which column indicates the coreID
@@ -270,7 +270,7 @@ assign_uri <- function(term) {
 
 # Create meta.xml for bud burst DwC-A -------------------------------------
 
-create_meta_xml(core = c("Event" = here::here("data", "event.txt")),
-                extensions = c("ExtendedMeasurementOrFact" = here::here("data", "extendedmeasurementorfact.txt"),
-                               "Occurrence" = here::here("data", "occurrence.txt")),
+create_meta_xml(core = c("Event" = here::here("data", "event.csv")),
+                extensions = c("ExtendedMeasurementOrFact" = here::here("data", "extendedmeasurementorfact.csv"),
+                               "Occurrence" = here::here("data", "occurrence.csv")),
                 file = here::here("data", "meta.xml"))
