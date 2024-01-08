@@ -95,12 +95,12 @@ for (f in seq(1, length(climateScenarios), by = 1)) {
                   run = rep(f, nrow(.)))
   
   # standardize data 
-  Data_for_standardization <- Data_MeanTemp %>% 
-    dplyr::filter(year > (min(budburst$year) - 1) & year < (max(budburst$year) + 1))
+  # Data_for_standardization <- Data_MeanTemp %>% 
+  #   dplyr::filter(year > (min(budburst$year) - 1) & year < (max(budburst$year) + 1))
   
   # get mean and standard deviation over all years
-  overall_mean <- mean(Data_for_standardization$mean)
-  overall_sd <- sd(Data_for_standardization$mean)
+  overall_mean <- mean(Data_MeanTemp$mean)
+  overall_sd <- sd(Data_MeanTemp$mean)
   
   df <- Data_MeanTemp %>% 
     # anomalies as (mean of year x - mean over years)/mean over years
@@ -241,7 +241,9 @@ ggplot(pred_obs_bb, aes(mean_temp, mean_temperature)) +
   geom_point() +
   geom_smooth(method = "lm") +
   facet_wrap(~ run) +
-  labs(x = "Measured KNMI mean temperature of window", y = "Mean scenario temperature in window", title = "KNMI vs. scenario temperatures per scneario run")
+  labs(x = "Measured KNMI mean temperature of window", 
+       y = "Mean scenario temperature in window", 
+       title = "KNMI vs. scenario temperatures per scneario run")
 
 # ggsave(filename = "P:/Fair data for DT/Temperature scenarios/plot_KNMI_scenario_temp.png", unit = "cm", width = 30, height = 20)
 
@@ -249,8 +251,16 @@ ggplot(pred_obs_bb, aes(mean_temp, mean_temperature)) +
 ggplot(pred_obs_bb, aes(avg_budburst_DOY_allLoc, predicted_bb_doy)) +
   geom_point() +
   geom_smooth(method = "lm") +
-  labs(x = "Observed mean bud burst date [day of year]", y = "Predicted mean bud burst date [day of year]", title = "Predicted vs. observed based on actual temperature per scenario run") +
+  labs(x = "Observed mean bud burst date [day of year]", 
+       y = "Predicted mean bud burst date [day of year]", 
+       title = "Predicted vs. observed based on actual temperature per scenario run") +
   facet_wrap(~ run) +
   xlim(100, 130)
 
 # ggsave(filename = "P:/Fair data for DT/Temperature scenarios/plot_pred_obs_bb.png", unit = "cm", width = 30, height = 20)
+
+
+# save output for forecasting script
+# write.csv(Summary_scenarios, file = here::here("data", "Summary_scenarios.csv"))
+# save(model_bb_KNMI, file = here::here("data", "model_budburst_temp.rda"))
+# save(model_bb_KNMI_zScore, file = here::here("data", "model_budburst_zScore_temp.rda"))
