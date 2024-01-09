@@ -99,7 +99,7 @@ create_meta_xml <- function(core,
 
                  xml2::xml_add_sibling(.x = xml2::xml_children(xml2::xml_children(meta))[2],
                                        .value = "field",
-                                       "index" = .y,
+                                       "index" = .y - 1,
                                        "term" = assign_uri(.x))
 
                })
@@ -152,10 +152,14 @@ create_meta_xml <- function(core,
                                 .y = seq_len(length(names(extension_file))),
                                 .f = ~{
 
-                                  xml2::xml_add_child(.x = xml2::xml_children(meta)[extension_number + 1],
-                                                      .value = "field",
-                                                      "index" = .y,
-                                                      "term" = assign_uri(.x))
+                                  if(.x != core_id) {
+
+                                    xml2::xml_add_child(.x = xml2::xml_children(meta)[extension_number + 1],
+                                                        .value = "field",
+                                                        "index" = .y - 1,
+                                                        "term" = assign_uri(.x))
+
+                                  }
 
                                 })
 
