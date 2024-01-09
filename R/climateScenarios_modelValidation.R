@@ -2,7 +2,7 @@
 
 # Author: Cherine Jantzen
 # Created: 05/01/2024
-# Updated: 08/01/2024
+# Updated: 09/01/2024
 
 # I. Preparation ----------------------------------------------------------
 
@@ -13,254 +13,242 @@ library(ggplot2)
 
 # load data
 temp <- read.csv(here::here("data", "temp_climwin_input.csv"))
-budburst <- read.csv(here::here("data","budburst_climwin_input.csv"))
+avg_annual_budburst_dates <- read.csv(here::here("data","budburst_climwin_input.csv"))
 climwin_QRobur <- load(here::here("data", "climwin_outputs_Qrobur.rda"))
 
 
-# II. Format temperature data ---------------------------------------------
+# II. Function 1: Format measured temperature data and model bud b --------
 
-# format temperature data and filter for bud burst sensitive period
-temp <- temp %>%
-  dplyr::mutate(date = lubridate::as_date(date),
-                year = lubridate::year(date),
-                month = lubridate::month(date),
-                day = lubridate::day(date),
-                doy = lubridate::yday(date),
-                # Create dummy for filtering window later. Format: 312 = March 12, 401 = April 1
-                dummy = month * 100 + day) %>%
-  # filter for the calculated window of climwin
-  dplyr::filter(dummy > (lubridate::month(first_window_Qrobur$start_date) * 100 + lubridate::day(first_window_Qrobur$start_date)) &
-                  dummy < (lubridate::month(first_window_Qrobur$end_date) * 100 + lubridate::day(first_window_Qrobur$end_date)))
+model_budburst_measuredTemp <- function(temperature_data,
+                                        climwin_output,
+                                        biological_data,
+                                        use_zScores) {
+  
+  # format temperature data and filter for bud burst sensitive period
+  measured_temp <- temperature_data %>%
+    dplyr::mutate(date = lubridate::as_date(date),
+                  year = lubridate::year(date),
+                  month = lubridate::month(date),
+                  day = lubridate::day(date),
+                  doy = lubridate::yday(date),
+                  # Create dummy for filtering window later. Format: 312 = March 12, 401 = April 1
+                  dummy = month * 100 + day) %>%
+    # filter for the calculated window of climwin
+    dplyr::filter(dummy > (lubridate::month(climwin_output$start_date) * 100 + lubridate::day(climwin_output$start_date)) &
+                    dummy < (lubridate::month(climwin_output$end_date) * 100 + lubridate::day(climwin_output$end_date))) %>%
+    # get mean temperature per day and year over all locations
+    dplyr::summarise("mean_temperature" = mean(temperature),
+                     "sd_KNMI_temp" = sd(temperature, na.rm = TRUE),
+                     .by = "year") %>% 
+    dplyr::mutate(overall_mean = mean(mean_temperature),
+                  overall_sd = sd(mean_temperature),
+                  # annotate data
+                  type = rep("measured", nrow(.)),
+                  scenario = rep(NA, nrow(.)),
+                  run = rep(NA, nrow(.)),
+                  # z-scores as (mean of year x - mean over years)/sd of yearly means
+                  zScore = (mean_temperature - overall_mean) / overall_sd) %>%
+    dplyr::select(!c("overall_mean", "overall_sd"))
+  
+  ## Model bud burst with measured KNMI temperatures ####
+  budburst <- biological_data  %>%
+    dplyr::mutate(year = as.numeric(year)) %>%
+    dplyr::summarise(avg_budburst_DOY_allLoc = mean(avg_bud_burst_DOY), 
+                     .by = "year")
+  
+  # add bud burst to temperature
+  budburst_temp <- measured_temp %>%
+    dplyr::left_join(budburst, by = "year")
+  
+  # linear model
+  if(!(use_zScores == "yes")) {
+    
+    model_bb_temp <- lm(avg_budburst_DOY_allLoc ~ mean_temperature, data = budburst_temp)
+    intercept_bb_temp <- as.numeric(model_bb_temp$coefficients[1])
+    slope_bb_temp <- as.numeric(model_bb_temp$coefficients[2])
+    
+    plot <-  ggplot2::ggplot() +
+      ggplot2::geom_abline(intercept = intercept_bb_temp, 
+                           slope = slope_bb_temp, 
+                           linetype = 1, linewidth = 1, color = "black") +
+      ggplot2::geom_point(data = budburst_temp, aes(x = mean_temperature, 
+                                                    y = avg_budburst_DOY_allLoc), 
+                          color = "black", size = 3) +
+      ggplot2::ylab("Bud burst date (DOY)") +
+      ggplot2::xlab("mean measured temperature") +
+      ggplot2::theme_classic()
+    
+    return(tibble::lst(budburst_temp, model_bb_temp, intercept_bb_temp, slope_bb_temp, plot))
+    
+  } else {
+    
+    model_bb_temp_zScore <- lm(avg_budburst_DOY_allLoc ~ zScore, data = budburst_temp)
+    intercept_bb_temp_zScore <- as.numeric(model_bb_temp_zScore$coefficients[1])
+    slope_bb_temp_zScore <- as.numeric(model_bb_temp_zScore$coefficients[2])
+    
+    plot_zScore <-  ggplot2::ggplot() +
+      ggplot2::geom_abline(intercept = intercept_bb_temp_zScore, 
+                           slope = slope_bb_temp_zScore, linetype = 1, linewidth = 1, color = "black") +
+      ggplot2::geom_point(data = budburst_temp, aes(x = zScore, y = avg_budburst_DOY_allLoc), color = "black", size = 3) +
+      ggplot2::ylab("Bud burst date (DOY)") +
+      ggplot2::xlab("zScore measured temperatures") +
+      ggplot2::theme_classic()
+    
+    return(tibble::lst(budburst_temp, model_bb_temp_zScore, intercept_bb_temp_zScore, slope_bb_temp_zScore, plot_zScore))
+  }
+}
 
-# get mean temperature per day and year over all locations
-mean_KNMI_temp <- temp %>%
-  dplyr::summarise("mean_temperature" = mean(temperature),
-                   "sd_KNMI_temp" = sd(temperature, na.rm = TRUE),
-                   .by = "year")
+
+# III. Function 2:  -------------------------------------------------------
+
+scenario_hindcast_budburst <- function(climwin_output,
+                                       scenario_name,
+                                       scenario_data,
+                                       biological_data, # format biological data here again -> better option?
+                                       linear_model,
+                                       use_zScores){
+  
+  # loop through all files to format data
+  scenario_temp <- NULL
+  
+  for(f in 1:length(scenario_data)) {
+    
+    df <- scenario_data[[f]]
+    
+    # add year and day of year
+    df <- df %>%
+      dplyr::mutate(date = lubridate::as_date(time, "%Y-%m-%d"),
+                    year = lubridate::year(date),
+                    dummy = lubridate::month(date) * 100 + lubridate::day(date),
+                    doy = lubridate::yday(date),
+                    # add mean temperatures in degree celcius
+                    temp_degreesC = TREFHT - 273.15,
+                    run = f) %>%
+      dplyr::filter(dummy > (lubridate::month(climwin_output$start_date) * 100 + lubridate::day(climwin_output$start_date)) &
+                      dummy < (lubridate::month(climwin_output$end_date) * 100 + lubridate::day(climwin_output$end_date))) %>%
+      
+      # summarise and annotate data per run
+      dplyr::summarise("mean_temperature" = mean(temp_degreesC, na.rm = TRUE), 
+                       "sd_temperature" = sd(temp_degreesC, na.rm = TRUE),
+                       .by = "year") %>%
+      dplyr::mutate(type = rep("model", nrow(.)),
+                    scenario = rep(scenario_name, nrow(.)),
+                    run = rep(f, nrow(.)),
+                    # get mean and standard deviation over all years
+                    overall_mean = mean(mean_temperature),
+                    overall_sd = sd(mean_temperature),
+                    # z-scores as (mean of year x - mean over years)/sd of yearly means
+                    zScore = (mean_temperature - overall_mean) / overall_sd)
+    
+    
+    scenario_temp <- rbind(scenario_temp, df)
+  }
+  
+  # Hindcasting
+  scenario_temp_bbPeriod <- scenario_temp %>% 
+    dplyr::filter(year > (min(biological_data$year) - 1), year < (max(biological_data$year) + 1))
+  
+  
+  hindcast_budburst <- NULL
+  
+  for (i in 1:length(unique(scenario_temp_bbPeriod$run))) {
+    
+    data <- scenario_temp_bbPeriod %>% 
+      dplyr::filter(run == i)
+    
+    if(!(use_zScores == "yes")) {
+      
+      new <- data.frame(mean_temperature = data$mean_temperature)
+      
+    } else {
+      new <- data.frame(zScore = data$zScore)
+    }
+    
+    # predict bud burst dates 
+    prediction <- predict(linear_model, newdata = new, se.fit = TRUE, interval = "prediction")
+    df <- data.frame(data, prediction$fit)
+    
+    # add data to data frames
+    hindcast_budburst <- rbind(hindcast_budburst, df)
+  }
+  
+  budburst <- biological_data  %>%
+    dplyr::mutate(year = as.numeric(year)) %>%
+    dplyr::summarise(avg_budburst_DOY_allLoc = mean(avg_bud_burst_DOY, na.rm = TRUE), 
+                     .by = "year")
+  
+  pred_obs_bb <- hindcast_budburst %>% 
+    dplyr::select("predicted_bb_doy" = "fit", "year", "run") %>%
+    left_join(budburst, by = "year")
+  
+  plot <- ggplot2::ggplot(pred_obs_bb, aes(avg_budburst_DOY_allLoc, predicted_bb_doy)) +
+    ggplot2::geom_point() +
+    ggplot2::geom_smooth(method = "lm") +
+    ggplot2::labs(x = "Observed mean bud burst date [day of year]", 
+                  y = "Predicted mean bud burst date [day of year]", 
+                  title = "Predicted vs. observed bud burst dates per scenario run") +
+    ggplot2::facet_wrap(~ run) +
+    ggplot2::xlim(100, 130)
+  
+  
+  return(tibble::lst(scenario_temp, pred_obs_bb, plot, scenario_name))
+}
 
 
-# III. Scenario data ------------------------------------------------------
+# IV. Use functions -------------------------------------------------------
 
-## 1. Format scenario data ####
+## 1. Model bud burst based on measured temperatures ####
+# with zScores of temperature
+KNMI_temp_zScore <- model_budburst_measuredTemp(temperature_data = temp,
+                                                biological_data = avg_annual_budburst_dates %>%
+                                                  dplyr::filter(stringr::str_detect(scientificName, "Quercus robur")),
+                                                climwin_output = first_window_Qrobur,
+                                                use_zScores = "yes")
+KNMI_temp_zScore$plot_zScore
+
+# with mean temperatures
+KNMI_temp <- model_budburst_measuredTemp(temperature_data = temp,
+                                         biological_data = avg_annual_budburst_dates %>%
+                                           dplyr::filter(stringr::str_detect(scientificName, "Quercus robur")),
+                                         climwin_output = first_window_Qrobur,
+                                         use_zScores = "no")
+KNMI_temp$plot
+
+
+## 2. Use scenario temperatures to hind-cast bud burst dates and compare with measured bud burst dates ####
+
+## Get scenario data
 # load and format scenario data
-FileNames = list.files("P:/Fair data for DT/Temperature scenarios/Scenario_data") # to be changed
-# FileNames = list.files(here::here("data"), pattern = "cesm")) # does that work?
+FileNames = list.files("P:/Fair data for DT/Temperature scenarios/Scenario_data") # to be changed to GitHub repo
+
 
 # load each file
-FileList <- lapply(paste("P:/Fair data for DT/Temperature scenarios/Scenario_data", FileNames, sep = "/"), # to be changed
+FileList <- lapply(paste("P:/Fair data for DT/Temperature scenarios/Scenario_data", FileNames, sep = "/"), # to be changed to GitHub repo
                    function(x) read.table(x, header = TRUE, sep = ","))
 
-# loop through all files to format data
-climateScenarios <- NULL
+# use function 2
+hindcast_bb_zScore <- scenario_hindcast_budburst(climwin_output = first_window_Qrobur,
+                                                 scenario_name = "RCP_8.5",
+                                                 scenario_data = FileList,
+                                                 linear_model = KNMI_temp_zScore$model_bb_temp_zScore,
+                                                 biological_data = avg_annual_budburst_dates,
+                                                 use_zScores = "yes")
+# get plot
+hindcast_bb_zScore$plot
 
-for(f in seq(1, length(FileNames), by = 1)) {
-  
-  Data <- FileList[[f]]
-  
-  # add year and day of year
-  Data <- Data %>%
-    dplyr::mutate(date = lubridate::as_date(time, "%Y-%m-%d"),
-                  year = lubridate::year(date),
-                  dummy = lubridate::month(date) * 100 + lubridate::day(date),
-                  doy = lubridate::yday(date),
-                  # add mean temperatures in degree celcius
-                  temp_degreesC = TREFHT - 273.15)
-  
-  # save data in vector
-  run <- paste0("Run", f)
-  climateScenarios <- append(climateScenarios, run, after = length(climateScenarios))
-  assign(run, Data)
-}
-
-
-# III. Summarize data for model validation --------------------------------
-
-## 1. Climate scenarios ####
-Summary_scenarios <- NULL
-
-for (f in seq(1, length(climateScenarios), by = 1)) {
-  
-  # get data for each run & filter scenario for temperature sensitive window of bud burst
-  Data <- get(climateScenarios[f]) %>%
-    dplyr::filter(dummy > (lubridate::month(first_window_Qrobur$start_date) * 100 + lubridate::day(first_window_Qrobur$start_date)) &
-                    dummy < (lubridate::month(first_window_Qrobur$end_date) * 100 + lubridate::day(first_window_Qrobur$end_date)))
-  
-  # summarise and annotate data per run
-  Data_MeanTemp <- Data %>% 
-    dplyr::summarise(mean = mean(temp_degreesC, na.rm = TRUE), 
-                     sd = sd(temp_degreesC, na.rm = TRUE),
-                     .by = "year") %>%
-    dplyr::mutate(type = rep("Model", nrow(.)),
-                  scenario = rep("RCP_8.5", nrow(.)),
-                  run = rep(f, nrow(.)))
-  
-  # standardize data 
-  # Data_for_standardization <- Data_MeanTemp %>% 
-  #   dplyr::filter(year > (min(budburst$year) - 1) & year < (max(budburst$year) + 1))
-  
-  # get mean and standard deviation over all years
-  overall_mean <- mean(Data_MeanTemp$mean)
-  overall_sd <- sd(Data_MeanTemp$mean)
-  
-  df <- Data_MeanTemp %>% 
-    # anomalies as (mean of year x - mean over years)/mean over years
-    dplyr::mutate(anomaly = (mean - overall_mean) / overall_mean, 
-                  # z-scores as (mean of year x - mean over years)/sd of yearly means
-                  zScore = (mean - overall_mean) / overall_sd) 
-  
-  Summary_scenarios <- rbind(Summary_scenarios, df)
-}
-
-## 2. KNMI temperatures ####
-KNMI_temp_summary <- 
-  mean_KNMI_temp %>% 
-  dplyr::mutate(overall_mean = mean(mean_temperature),
-                overall_sd = sd(mean_temperature),
-                type = rep("KNMI", nrow(.)),
-                scenario = rep(NA, nrow(.)),
-                run = rep(NA, nrow(.)),
-                # anomalies as (mean of year x - mean over years)/mean over years
-                anomaly = (mean_temperature - overall_mean) / overall_mean,
-                # z-scores as (mean of year x - mean over years)/sd of yearly means
-                zScore = (mean_temperature - overall_mean) / overall_sd) %>%
-  dplyr::select(!c("overall_mean", "overall_sd"))
-
-
-# IV. Model bud burst and temperature -------------------------------------
-
-## 1. Model bud burst with measured KNMI temperatures ####
-budburst_QR <- budburst %>%
-  dplyr::filter(scientificName == "Quercus robur L.") %>%
-  dplyr::mutate(year = as.numeric(year)) %>%
-  dplyr::summarise(avg_budburst_DOY_allLoc = mean(avg_bud_burst_DOY), .by = "year")
-
-# add bud burst to temperature
-budburst_temp <- KNMI_temp_summary %>%
-    dplyr::left_join(budburst_QR, by = "year")
-
-# linear model
-model_bb_KNMI_zScore <- lm(avg_budburst_DOY_allLoc ~ zScore, data = budburst_temp)
-
-intercept_bb_KNMI_zScore <- as.numeric(model_bb_KNMI_zScore$coefficients[1])
-slope_bb_KNMI_zScore <- as.numeric(model_bb_KNMI_zScore$coefficients[2])
-
-summary(model_bb_KNMI_zScore)
-
-ggplot2::ggplot() +
-  ggplot2::geom_abline(intercept = intercept_bb_KNMI_zScore, slope = slope_bb_KNMI_zScore, linetype = 1, linewidth = 1, color = "black") +
-  ggplot2::geom_point(data = budburst_temp, aes(x = zScore, y = avg_budburst_DOY_allLoc), color = "black", size = 3) +
-  ggplot2::ylab("Bud burst date (DOY)") +
-  ggplot2::xlab("zScore KNMI temperatures") +
-  ggplot2::theme_classic()
-
-# ggsave(filename = "P:/Fair data for DT/Temperature scenarios/plot_observedBB_KNMItemp_zscore.png")
-
-## 2. Hindcasting: Predict bud burst based on scenario temperatures ####
-
-Summary_scenario_bbPeriod <- Summary_scenarios %>% 
-  dplyr::filter(year > (min(budburst_QR$year) - 1), year < (max(budburst_QR$year) + 1))
-
-
-Predicted_budburst <- NULL
-
-for (f in 1:length(unique(Summary_scenario_bbPeriod$run))) {
-  
-  data <- Summary_scenario_bbPeriod %>% 
-    dplyr::filter(run == f)
-  
-  new <- data.frame(zScore = data$zScore)
-  
-  # predict bud burst dates 
-  prediction <- predict(model_bb_KNMI_zScore, newdata = new, se.fit = TRUE, interval = "prediction")
-  df <- data.frame(data, prediction$fit)
-  
-  # add data to data frames
-  Predicted_budburst <- rbind(Predicted_budburst, df)
-}
-
-pred_obs_bb <- Predicted_budburst %>% 
-  dplyr::select("predicted_bb_doy" = "fit", "year", "run") %>%
-  left_join(budburst_QR, by = "year")
-
-ggplot2::ggplot(pred_obs_bb, aes(avg_budburst_DOY_allLoc, predicted_bb_doy)) +
-  ggplot2::geom_point() +
-  ggplot2::geom_smooth(method = "lm") +
-  ggplot2::labs(x = "Observed mean bud burst date [day of year]", 
-                y = "Predicted mean bud burst date [day of year]", 
-                title = "Predicted vs. observed based on zScores of temperature per scenario run") +
-  ggplot2::facet_wrap(~ run) +
-  ggplot2::xlim(100, 130)
-
-# ggsave(filename = "P:/Fair data for DT/Temperature scenarios/plot_zscore_observed_pred_bb.png", unit = "cm", width = 30, height = 20)
-
-
-# V. Alternative approach: Real temperatures instead of zScores ---------------
-
-# linear model
-model_bb_KNMI <- lm(avg_budburst_DOY_allLoc ~ mean_temperature, data = budburst_temp)
-
-intercept_bb_KNMI <- as.numeric(model_bb_KNMI_zScore$coefficients[1])
-slope_bb_KNMI <- as.numeric(model_bb_KNMI_zScore$coefficients[2])
-
-summary(model_bb_KNMI)
-
-ggplot2::ggplot() +
-  ggplot2::geom_abline(intercept = intercept_bb_KNMI, 
-                       slope = slope_bb_KNMI, 
-                       linetype = 1, linewidth = 1, color = "black") + # where is the line?
-  ggplot2::geom_point(data = budburst_temp, aes(x = mean_temperature, y = avg_budburst_DOY_allLoc), color = "black", size = 3) +
-  ggplot2::ylab("Bud burst date (DOY)") +
-  ggplot2::xlab("KNMI temperatures") +
-  ggplot2::theme_classic()
-
-## 2. Hindcasting: Predict bud burst based on scenario temperatures ####
-
-Predicted_budburst <- NULL
-
-for (f in 1:length(unique(Summary_scenario_bbPeriod$run))) {
-  
-  data <- Summary_scenario_bbPeriod %>% 
-    dplyr::filter(run == f)
-  
-  new <- data.frame(mean_temperature = data$mean)
-  
-  # predict bud burst dates 
-  prediction <- predict(model_bb_KNMI, newdata = new, se.fit = TRUE, interval = "prediction")
-  df <- data.frame(data, prediction$fit)
-  
-  # add data to data frames
-  Predicted_budburst <- rbind(Predicted_budburst, df)
-}
-
-pred_obs_bb <- Predicted_budburst %>% 
-  dplyr::select("predicted_bb_doy" = "fit", "year", "run", "mean_temp" = "mean") %>%
-  left_join(budburst_temp %>%
-              dplyr::select("year", "mean_temperature", "avg_budburst_DOY_allLoc"), by = "year")
-
-ggplot(pred_obs_bb, aes(mean_temp, mean_temperature)) +
-  geom_point() +
-  geom_smooth(method = "lm") +
-  facet_wrap(~ run) +
-  labs(x = "Measured KNMI mean temperature of window", 
-       y = "Mean scenario temperature in window", 
-       title = "KNMI vs. scenario temperatures per scneario run")
-
-# ggsave(filename = "P:/Fair data for DT/Temperature scenarios/plot_KNMI_scenario_temp.png", unit = "cm", width = 30, height = 20)
-
-# plot predicted and observed bud burst dates 
-ggplot(pred_obs_bb, aes(avg_budburst_DOY_allLoc, predicted_bb_doy)) +
-  geom_point() +
-  geom_smooth(method = "lm") +
-  labs(x = "Observed mean bud burst date [day of year]", 
-       y = "Predicted mean bud burst date [day of year]", 
-       title = "Predicted vs. observed based on actual temperature per scenario run") +
-  facet_wrap(~ run) +
-  xlim(100, 130)
-
-# ggsave(filename = "P:/Fair data for DT/Temperature scenarios/plot_pred_obs_bb.png", unit = "cm", width = 30, height = 20)
+# with mean temperatures
+hindcast_bb <- scenario_hindcast_budburst(climwin_output = first_window_Qrobur,
+                                          scenario_name = "RCP_8.5",
+                                          scenario_data = FileList,
+                                          linear_model = KNMI_temp$model_bb_temp,
+                                          biological_data = avg_annual_budburst_dates,
+                                          use_zScores = "no")
+# get plot
+hindcast_bb$plot
 
 
 # save output for forecasting script
-# write.csv(Summary_scenarios, file = here::here("data", "Summary_scenarios.csv"))
-# save(model_bb_KNMI, file = here::here("data", "model_budburst_temp.rda"))
-# save(model_bb_KNMI_zScore, file = here::here("data", "model_budburst_zScore_temp.rda"))
+# save(hindcast_bb_zScore, file = here::here("data", "hindcast_budburst_zScore.rda"))
+# save(hindcast_bb, file = here::here("data", "hindcast_budburst.rda"))
+# save(KNMI_temp_zScore, file = here::here("data", "KNMI_temp_zScore.rda"))
+# save(KNMI_temp, file = here::here("data", "KNMI_temp.rda"))
