@@ -3,11 +3,10 @@
 
 # Author: Cherine Jantzen
 # Created: 08/01/2024
-
+# Updated: 10/01/2024
 
 # I. Preparation ----------------------------------------------------------
 
-# What data do we need from the previous script?
 # load(hindcast_bb_zScore, file = here::here("data", "hindcast_budburst_zScore.rda"))
 # load(hindcast_bb, file = here::here("data", "hindcast_budburst.rda"))
 # load(KNMI_temp_zScore, file = here::here("data", "KNMI_temp_zScore.rda"))
@@ -15,10 +14,13 @@
 
 # II. Function: Forecasting ---------------------------------------------------------
 
-# The prediction intervals are for a single observation at each case in newdata
-# (or by default, the data used for the fit) with error variance(s) pred.var. This can be a multiple
-# of res.var, the estimated value of σ^2: the default is to assume that future observations have the
-# same error variance as those used for fitting.
+# Arguments
+# scenario_temp: Formatted scenario temperature data as given by in the output list of function "scenario_hindcast_budburst".
+# start_year: Year as numeric specifying the year in which to start forecasting.
+# linear_model: Linear model used in function 'model_budburst_measuredTemp' to model bud burst against the measured temperatures. Used as the basis for the predictions of future bud burst dates. 
+# scenario_name: Character specifying the name of the scenario the function is used on to annotate the data (e.g., "RCP 8.5")
+# use_zScores: ...?
+
 
 forecasting_budburst <- function(scenario_temp,
                                  start_year,
@@ -96,12 +98,40 @@ future_budburst_RCP8.5_zScores$plot
 # use mean temperatures
 future_budburst_RCP8.5 <- forecasting_budburst(start_year = 2024,
                                                scenario_temp = hindcast_bb$scenario_temp,
-                                               linear_model = KNMI_temp$model_bb_temp_zScore,
+                                               linear_model = KNMI_temp$model_bb_temp,
                                                scenario_name = hindcast_bb$scenario_name,
-                                               use_zScore = "yes")
+                                               use_zScore = "no")
 
 future_budburst_RCP8.5$plot
 
+
+# IV. Repetition of forecasting -------------------------------------------
+repeats <- 100 
+
+future_budburst_RCP8.5_zScores_repeated <- replicate(repeats, forecasting_budburst(start_year = 2024,
+                                                                                   scenario_temp = hindcast_bb_zScore$scenario_temp,
+                                                                                   linear_model = KNMI_temp_zScore$model_bb_temp_zScore,
+                                                                                   scenario_name = hindcast_bb_zScore$scenario_name,
+                                                                                   use_zScore = "yes"), simplify = FALSE)
+
+repl_forecast <- NULL
+
+for(i in 1:repeats) {
+  
+  # get only the data frame out of the output list 
+  df <- future_budburst_RCP8.5_zScores_repeated[[i]]$Summary_future_budburst
+  
+  df1 <- df %>% mutate(repetition = i)
+  repl_forecast <- rbind(repl_forecast, df1)
+}
+
+
+ggplot2::ggplot(repl_forecast) + 
+  ggplot2::geom_point(aes(x = year, y = fit, colour = run)) + 
+  ggplot2::labs(y = "Predicted bud burst date (DOY)", 
+                x = "Year") +  
+  ggplot2::theme_classic() +
+  scale_colour_viridis_c(option = "D")
 
 
 ###############################################################################
