@@ -26,7 +26,7 @@ forecasting_budburst <- function(scenario_temp,
                                  start_year,
                                  linear_model,
                                  scenario_name,
-                                 use_zScores){
+                                 use_zScores = c("yes", "no")){
   
   future_temp <- scenario_temp %>% 
     dplyr::filter(year > (start_year - 1))
@@ -76,7 +76,7 @@ forecasting_budburst <- function(scenario_temp,
                   title = paste("Scenario", scenario_name, sep = " ")) + 
     ggplot2::theme_classic() + 
     ggplot2::scale_y_continuous(limits = c(min(Summary_future_budburst$lwr), max(Summary_future_budburst$upr))) + 
-    ggplot2::scale_x_continuous(limits = c((min(Summary_future_budburst$year - 1)), (max(Summary_future_budburst$year) - 1)))
+    ggplot2::scale_x_continuous(limits = c(min(Summary_future_budburst$year), max(Summary_future_budburst$year)))
   
   
   return(tibble::lst(Summary_future_budburst, plot))
