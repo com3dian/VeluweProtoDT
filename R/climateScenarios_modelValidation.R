@@ -28,7 +28,8 @@ climwin_QRobur <- load(here::here("data", "climwin_outputs_Qrobur.rda"))
 model_budburst_measuredTemp <- function(temperature_data,
                                         climwin_output,
                                         biological_data,
-                                        use_zScores) {
+                                        use_zScores,
+                                        number_simulations) {
   
   ## format temperature data and filter for bud burst sensitive period
   measured_temp <- temperature_data %>%
@@ -74,6 +75,38 @@ model_budburst_measuredTemp <- function(temperature_data,
     model_bb_temp <- lm(avg_budburst_DOY_allLoc ~ mean_temperature, data = budburst_temp)
     intercept_bb_temp <- as.numeric(model_bb_temp$coefficients[1])
     slope_bb_temp <- as.numeric(model_bb_temp$coefficients[2])
+    sigma_bb_temp <- sigma(model_bb_temp)
+    model_coefficients_bb_temp <- model_bb_temp$coefficients
+    vcov_bb_temp <- vcov(model_bb_temp)
+    
+    # simulations
+    sim_scenario_slope_pred_year <- NULL
+    
+    for (s in 1:number_simulations) {
+      
+        # get data to predict on 
+        new_data <- data.frame(mean_temperature = budburst_temp$mean_temperature)
+        
+        Error <- rnorm(n = nrow(new_data), sd = sigma_bb_temp)
+        predicted_bb_date <- intercept_bb_temp + slope_bb_temp * new_data$mean_temperature + Error
+        predicted_budburst <- data.frame(budburst_temp, predicted_bb_date)
+        
+        # get slope
+        model_pred_year <- lm(predicted_bb_date ~ year, data = predicted_budburst)
+        slope_pred_year <- as.numeric(model_pred_year$coefficients[2])
+        df_slope_pred_year <- data.frame(scenario = "measured", run = NA, sim = paste0("sim_", s), slope = slope_pred_year)
+        
+       sim_scenario_slope_pred_year <- rbind(sim_scenario_slope_pred_year, df_slope_pred_year)
+    }
+    
+    
+    
+    # ### residuals of model
+    # residual_fitted <- dplyr::bind_cols(model_bb_temp$residuals, model_bb_temp$fitted.values) %>%
+    #   dplyr::rename("residuals" = "...1", "fitted" = "...2") %>% 
+    #   ggplot2::ggplot(aes(x = fitted, y = residuals)) + 
+    #   geom_point() + 
+    #   theme_classic() 
     
     ### plot observed bud burst dates against mean temperatures
     plot <-  ggplot2::ggplot() +
@@ -87,7 +120,7 @@ model_budburst_measuredTemp <- function(temperature_data,
       ggplot2::xlab("mean measured temperature") +
       ggplot2::theme_classic()
     
-    return(tibble::lst(avg_budburst, budburst_temp, model_bb_temp, intercept_bb_temp, slope_bb_temp, plot))
+    return(tibble::lst(avg_budburst, budburst_temp, model_bb_temp, sim_measured_slope_pred_year, plot))
     
   } else {
     
@@ -95,6 +128,37 @@ model_budburst_measuredTemp <- function(temperature_data,
     model_bb_temp_zScore <- lm(avg_budburst_DOY_allLoc ~ zScore, data = budburst_temp)
     intercept_bb_temp_zScore <- as.numeric(model_bb_temp_zScore$coefficients[1])
     slope_bb_temp_zScore <- as.numeric(model_bb_temp_zScore$coefficients[2])
+    sigma_bb_temp_zScore <- sigma(model_bb_temp_zScore)
+    model_coefficients_bb_temp_zScore <- model_bb_temp_zScore$coefficients
+    vcov_bb_temp_zScore <- vcov(model_bb_temp_zScore)
+    
+    sim_measured_slope_pred_year <- NULL
+    
+    for (s in 1:number_simulations) {
+      
+        # get data to predict on 
+        new_data <- data.frame(zScore = budburst_temp$zScore)
+        
+        Error <- rnorm(n = nrow(new_data), sd = sigma_bb_temp_zScore)
+        predicted_bb_date <- intercept_bb_temp_zScore + slope_bb_temp_zScore * new_data$zScore + Error
+        predicted_budburst <- data.frame(budburst_temp, predicted_bb_date)
+        
+        # get slope
+        model_pred_year <- lm(predicted_bb_date ~ year, data = predicted_budburst)
+        slope_pred_year <- as.numeric(model_pred_year$coefficients[2])
+        df_slope_pred_year <- data.frame(scenario = "measured", run = NA, sim = paste0("sim_", s), slope = slope_pred_year)
+        
+       
+      sim_measured_slope_pred_year <- rbind(sim_measured_slope_pred_year, df_slope_pred_year)
+    }
+    
+    
+    # ### residuals of model
+    # residual_fitted <- dplyr::bind_cols(model_bb_temp_zScore$residuals, model_bb_temp_zScore$fitted.values) %>%
+    #   dplyr::rename("residuals" = "...1", "fitted" = "...2") %>% 
+    #   ggplot2::ggplot(aes(x = fitted, y = residuals)) + 
+    #   geom_point() + 
+    #   theme_classic() 
     
     ### plot observed bud burst dates against zScores of temperature
     plot_zScore <-  ggplot2::ggplot() +
@@ -105,7 +169,7 @@ model_budburst_measuredTemp <- function(temperature_data,
       ggplot2::xlab("zScore measured temperatures") +
       ggplot2::theme_classic()
     
-    return(tibble::lst(avg_budburst, budburst_temp, model_bb_temp_zScore, intercept_bb_temp_zScore, slope_bb_temp_zScore, plot_zScore))
+    return(tibble::lst(avg_budburst, budburst_temp, model_bb_temp_zScore, sim_measured_slope_pred_year, plot_zScore))
   }
 }
 
@@ -221,7 +285,8 @@ KNMI_temp_zScore <- model_budburst_measuredTemp(temperature_data = temp,
                                                 biological_data = avg_annual_budburst_dates %>%
                                                   dplyr::filter(stringr::str_detect(scientificName, "Quercus robur")),
                                                 climwin_output = first_window_Qrobur,
-                                                use_zScores = "yes")
+                                                use_zScores = "yes",
+                                                number_simulations = 1000)
 KNMI_temp_zScore$plot_zScore
 
 # with mean temperatures
