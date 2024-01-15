@@ -3,7 +3,7 @@
 
 # Author: Cherine Jantzen
 # Created: 08/01/2024
-# Updated: 10/01/2024
+# Updated: 15/01/2024
 
 # I. Preparation ----------------------------------------------------------
 
@@ -23,77 +23,125 @@
 
 
 forecasting_budburst <- function(scenario_temp,
-                                 start_year,
                                  linear_model,
-                                 scenario_name,
                                  use_zScores = c("yes", "no")){
   
-  future_temp <- scenario_temp %>% 
-    dplyr::filter(year > (start_year - 1))
+  model_coefficients_bb_temp_zScore <- linear_model$coefficients
+  vcov_bb_temp_zScore <- vcov(linear_model)
   
-  future_budburst <- NULL
+  forecasted_budburst_smoothend <- NULL
+  forecasted_budburst <- NULL
   
-  for (i in 1:length(unique(future_temp$run))) {
+  for (r in unique(scenario_temp$run)) {
     
-    # filter per run
-    df <- future_temp %>% dplyr::filter(run == i)
+    df <- scenario_temp %>%
+      dplyr::filter(run == r)
     
-    if(!(use_zScores == "yes")) {
+    X <- model.matrix(~ zScore, data = df)
+    predicted <- X %*% model_coefficients_bb_temp_zScore
+    varPred <- diag(X %*% vcov_bb_temp_zScore %*% t(X))
+    sePred <- sqrt(varPred)
+    
+    df1 <- data.frame(df, 
+                      predicted_bb_date = predicted, 
+                      varPred = varPred,
+                      sePred = sePred)
+    
+    df1$Con95Pred <- 1.96 * df1$sePred
+    
+    forecasted_budburst <- rbind(forecasted_budburst, df1)
+    
+  
+  # 11 year sliding-window to smooth forecasting  
+    df2 <- df1 %>% dplyr::distinct(year, .keep_all = TRUE)
+    
+    forecasted_budburst_smoothend_run <- NULL
+  
+    for (s in (min(df2$year) + 5) : (max(df2$year) - 5)) {
       
-      # specify input data for predictions
-      new <- data.frame(mean_temperature = df$mean)
+      Data_s <- df2 %>% dplyr::filter(year >= (s - 5) & year <= (s + 5))
       
-    } else {
-      # specify input data for predictions
-      new <- data.frame(zScore = df$zScore)
+      Data_new <- data.frame(year = s, 
+                             #scenario_name = unique(df2$scenario_name), 
+                             run = r, 
+                             mean_pred_bb_window = mean(Data_s$predicted_bb_date), 
+                             sd = sd(Data_s$predicted_bb_date),
+                             error = (qnorm(0.95) * sd(Data_s$predicted_bb_date))/sqrt(nrow(Data_s)))
+      
+      Data_new <- Data_new[complete.cases(Data_new), ]
+      
+      forecasted_budburst_smoothend_run <- rbind(forecasted_budburst_smoothend_run, Data_new)
     }
     
-    # predict bud burst dates based on linear model
-    prediction <- predict(linear_model, newdata = new, se.fit = TRUE, interval = "prediction")
-    
-    df1 <- data.frame(df, prediction$fit)
-    future_budburst <- rbind(future_budburst, df1)
+    forecasted_budburst_smoothend <- rbind(forecasted_budburst_smoothend, forecasted_budburst_smoothend_run)
+  
   }
   
-  # get mean of predicted bud burst date per year 
-  Summary_future_budburst <- future_budburst %>% 
-    dplyr::mutate(mean_predicted_bbdate = mean(fit, na.rm = TRUE), 
-                  sd_predicted_bbdate = sd(fit, na.rm = TRUE),
-                  min_lwr = min(lwr), # how to handle errors?
-                  max_upr = max(upr),
-                  .by = "year")
+  # ADD BIND
   
-  # plot
-  plot <- ggplot2::ggplot(Summary_future_budburst) + 
-    ggplot2::geom_errorbar(aes(x = year, 
-                               ymin = min_lwr, 
-                               ymax = max_upr), width = 1) + 
-    ggplot2::geom_point(aes(x = year, 
-                            y = mean_predicted_bbdate), 
-                        shape = 21, color = "black", fill = "black", size = 5, alpha = 1) + 
-    ggplot2::labs(y = "Predicted bud burst date over all runs (DOY)", 
-                  x = "Year", 
-                  title = paste("Scenario", scenario_name, sep = " ")) + 
-    ggplot2::theme_classic() + 
-    ggplot2::scale_y_continuous(limits = c(min(Summary_future_budburst$lwr), max(Summary_future_budburst$upr))) + 
-    ggplot2::scale_x_continuous(limits = c(min(Summary_future_budburst$year), max(Summary_future_budburst$year)))
+  return(tibble::lst(forecasted_budburst, forecasted_budburst_smoothend))
   
-  
-  return(tibble::lst(Summary_future_budburst, plot))
-  
-}
+} 
+
 
 
 # III. Forecast bud burst dates -------------------------------------------
 
 # use zScores
-future_budburst_RCP8.5_zScores <- forecasting_budburst(start_year = 2024,
-                                                       scenario_temp = hindcast_bb_zScore$scenario_temp,
-                                                       linear_model = KNMI_temp_zScore$model_bb_temp_zScore,
-                                                       scenario_name = hindcast_bb_zScore$scenario_name,
+future_budburst_RCP8.5_zScores <- forecasting_budburst(scenario_temp = Validation_RCP8.5_zScores$scenario_temp_fut,
+                                                       linear_model = Validation_RCP8.5_zScores$model_for_prediction_zScore,
                                                        use_zScore = "yes")
 
-future_budburst_RCP8.5_zScores$plot
+future_budburst_RCP8.5_zScores$forecasted_budburst_smoothend %>%
+  group_by(year) %>%
+  summarise(mean = mean(mean_pred_bb_window, na.rm = TRUE),
+            sd = sd(mean_pred_bb_window, na.rm = TRUE),
+            error = (qnorm(0.95) * sd)/sqrt(n()),
+            CI_lower = mean - error,
+            CI_upper = mean + error) %>%
+  ggplot2::ggplot() +
+  ggplot2::geom_line(aes(y = mean, x = year), linewidth = 1) +
+  ggplot2::geom_ribbon(aes(x = year, 
+                           ymin = CI_lower, 
+                           ymax = CI_upper), 
+                       alpha = 0.2) +
+  ggplot2::theme_classic()
+
+# observed_predicted_bb <- Validation_RCP8.5_zScores$budburst_temp %>% 
+#   dplyr::select("avg_budburst_date" = "avg_budburst_DOY_allLoc", "year") %>% 
+#   dplyr::mutate(type = "measured",
+#                 Con95Pred = NA) %>%
+#   rbind(., future_budburst_RCP8.5_zScores$forecasted_budburst %>%
+#           dplyr::select("predicted_bb_date", "Con95Pred", "year") %>%
+#           dplyr::mutate("avg_budburst_date" = mean(predicted_bb_date), .by = "year") %>%
+#           dplyr::mutate(type = "predicted") %>%
+#           dplyr::select(!"predicted_bb_date"))
+# 
+# ggplot2::ggplot(observed_predicted_bb) +
+#   ggplot2::geom_line(data = observed_predicted_bb %>% 
+#                        dplyr::filter(year > 2023), 
+#                      aes(y = avg_budburst_date, x = year), linewidth = 2) +
+#   geom_point(data = observed_predicted_bb %>% 
+#                dplyr::filter(year < 2024), 
+#              aes(y = avg_budburst_date, x = year), size = 2) +
+#   ggplot2::geom_ribbon(data = observed_predicted_bb %>% dplyr::filter(year > 2023), aes(x = year, 
+#                            ymin = avg_budburst_date - Con95Pred, 
+#                            ymax = avg_budburst_date + Con95Pred), 
+#                        alpha = 0.2) +
+#   ggplot2::theme_classic()
+
+
+
+
+future_budburst_RCP8.5_zScores$forecasted_budburst %>% 
+  summarise(mean_fit = mean(fit), .by = "year") %>%
+  mutate(group = "predicted") %>% 
+  rbind(., Validation_RCP8.5_zScores$budburst_temp %>% 
+          select("mean_fit" = "avg_budburst_DOY_allLoc", "year") %>% 
+          mutate(group = "measured")) %>% 
+  ggplot(aes(y = mean_fit, x = year, colour = group)) +
+  geom_point(size = 2)
+
 
 # use mean temperatures
 future_budburst_RCP8.5 <- forecasting_budburst(start_year = 2024,
@@ -104,50 +152,4 @@ future_budburst_RCP8.5 <- forecasting_budburst(start_year = 2024,
 
 future_budburst_RCP8.5$plot
 
-
-# IV. Repetition of forecasting -------------------------------------------
-repeats <- 100 
-
-future_budburst_RCP8.5_zScores_repeated <- replicate(repeats, forecasting_budburst(start_year = 2024,
-                                                                                   scenario_temp = hindcast_bb_zScore$scenario_temp,
-                                                                                   linear_model = KNMI_temp_zScore$model_bb_temp_zScore,
-                                                                                   scenario_name = hindcast_bb_zScore$scenario_name,
-                                                                                   use_zScore = "yes"), simplify = FALSE)
-
-repl_forecast <- NULL
-
-for(i in 1:repeats) {
-  
-  # get only the data frame out of the output list 
-  df <- future_budburst_RCP8.5_zScores_repeated[[i]]$Summary_future_budburst
-  
-  df1 <- df %>% mutate(repetition = i)
-  repl_forecast <- rbind(repl_forecast, df1)
-}
-
-
-ggplot2::ggplot(repl_forecast) + 
-  ggplot2::geom_point(aes(x = year, y = fit, colour = run)) + 
-  ggplot2::labs(y = "Predicted bud burst date (DOY)", 
-                x = "Year") +  
-  ggplot2::theme_classic() +
-  scale_colour_viridis_c(option = "D")
-
-
-###############################################################################
-
-## Alternative plot
-
-# future_budburst_RCP8.5 %>% 
-#   purrr::pluck("Summary_future_budburst") %>%
-#   dplyr::summarise(the_real_mean = mean(fit),
-#                    the_real_upr = mean(upr),
-#                    the_real_lwr = mean(lwr),
-#                    .by = "year") %>% 
-#   ggplot2::ggplot() +
-#   ggplot2::geom_line(aes(x = year, y = the_real_upr), color = "red") +
-#   ggplot2::geom_line(aes(x = year, y = the_real_lwr), color = "blue") +
-#   ggplot2::geom_line(aes(x = year, y = the_real_mean)) +
-#   #ggplot2::geom_point(aes(x = year, y = fit)) +
-#   ggplot2::theme_classic()
 
