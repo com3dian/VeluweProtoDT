@@ -2,7 +2,7 @@
 
 # Author: Cherine Jantzen
 # Created: 05/01/2024
-# Updated: 15/01/2024
+# Updated: 16/01/2024
 
 # I. Preparation ----------------------------------------------------------
 
@@ -10,23 +10,37 @@
 library(lubridate)
 library(dplyr)
 library(ggplot2)
+library(ggpubr)
 
 # load data
 temp <- read.csv(here::here("data", "temp_climwin_input.csv"))
 avg_annual_budburst_dates <- read.csv(here::here("data","budburst_climwin_input.csv"))
 climwin_QRobur <- load(here::here("data", "climwin_outputs_Qrobur.rda"))
-scenario_data_all <- read.csv(here::here("data", "scenario_temperatures.csv"))
+scenario_data_all <- read.csv("P:/Fair data for DT/Temperature scenarios/scenario_temperatures.csv") # locally stored, as too big for GH
+
+# drop run member_id "009" and "010" from scenario 1pt5degC
+scenario_data_all <- scenario_data_all %>%
+  dplyr::filter(!(scenario_name %in% c("1pt5degC") & member_id %in% c("006", "007", "009", "010")))
+
 
 # set seed 
 set.seed(2804)
 
+# set colour palette
+scenario_colours <- c("RCP45" = "darkblue", "RCP85" = "orange", "1pt5degC" = "green", 
+                      "1pt5degC_OS" = "blue", "2pt0degC" = "#294C60", "measured" = "#820933")
+
+
 # II. Function 1: Format measured temperature data & model bud burst ------
 
 # Arguments
-# temperature_data: data frame/tibble specifying the measured temperatures that were used as an input for the climate window analysis
-# climwin_output: output from the climate window analysis of the sensitivity window .....?
+# measured_temperatures: data frame/tibble specifying the measured temperatures that were used as an input for the climate window analysis
+# climwin_output: output from the climate window analysis of climwin
 # biological_data: data frame/tibble specifying the biological input data (as used for the climate window analysis)
-# use_zScores: ....? specifying whether the zScores of temperatures should be used to model the biological variable or the actual yearly mean temperatures 
+# use_zScores: yes or no, specifying whether the zScores of temperatures should be used to model the biological variable or the actual yearly mean temperatures
+# number_simulations: numeric specifying the number of times the prediction of the biological variable is repeated
+# scenario_data: data frame containing the scenario temperature data
+# scenario: character, specifiying for which scenario the function is run, options are: 1pt5degC, 1pt5degC_OS, 2pt0degC, RCP85, RCP45
 
 model_validation <- function(measured_temperatures,
                              climwin_output,
@@ -69,27 +83,33 @@ model_validation <- function(measured_temperatures,
   ## 2. Scenario temperatures: Formatting ####
   df <- scenario_data %>% dplyr::filter(scenario_name == scenario)
   
-  ## add year and day of year
-  scenario_temp <- df %>%
-    dplyr::mutate(date = lubridate::as_date(time),
-                  year = lubridate::year(date),
-                  dummy = lubridate::month(date) * 100 + lubridate::day(date),
-                  doy = lubridate::yday(date),
-                  # add mean temperatures in degree Celsius
-                  temp_degreesC = as.numeric(TREFHT) - 273.15) %>%
-    dplyr::filter(dummy > (lubridate::month(climwin_output$start_date) * 100 + lubridate::day(climwin_output$start_date)) &
-                    dummy < (lubridate::month(climwin_output$end_date) * 100 + lubridate::day(climwin_output$end_date))) %>%
+  scenario_temp_fut <- NULL
+  scenario_temp_hist <- NULL
+  
+  for (a in unique(df$member_id)) {
     
-    ## summarise and annotate data per run
-    dplyr::mutate("mean_temperature" = mean(temp_degreesC, na.rm = TRUE), 
-                  "sd_temperature" = sd(temp_degreesC, na.rm = TRUE),
-                  .by = "year") %>%
-    dplyr::mutate(type = rep("model", nrow(.)),
-                  run = member_id)
+    ## add year and day of year
+    scenario_temp <- df %>%
+      dplyr::filter(member_id == a) %>%
+      dplyr::mutate(date = lubridate::as_date(time),
+                    year = lubridate::year(date),
+                    dummy = lubridate::month(date) * 100 + lubridate::day(date),
+                    doy = lubridate::yday(date),
+                    # add mean temperatures in degree Celsius
+                    temp_degreesC = as.numeric(TREFHT) - 273.15) %>%
+      dplyr::filter(dummy > (lubridate::month(climwin_output$start_date) * 100 + lubridate::day(climwin_output$start_date)) &
+                      dummy < (lubridate::month(climwin_output$end_date) * 100 + lubridate::day(climwin_output$end_date))) %>%
+      
+      ## summarise and annotate data per run
+      dplyr::mutate("mean_temperature" = mean(temp_degreesC, na.rm = TRUE), 
+                    "sd_temperature" = sd(temp_degreesC, na.rm = TRUE),
+                    .by = "year") %>%
+      dplyr::mutate(type = rep("model", nrow(.)),
+                    run = a)
   
   ## standardize scenario temperatures for historic and future period
   ### historic period
-  scenario_temp_hist <- scenario_temp %>% 
+  scenario_temp_hist_perRun <- scenario_temp %>% 
     dplyr::filter(year >= min(biological_data$year), year <= max(biological_data$year)) %>%
     # get mean and standard deviation over all years
     dplyr::mutate(overall_mean_hist = mean(mean_temperature),
@@ -97,10 +117,12 @@ model_validation <- function(measured_temperatures,
                   # z-scores as (mean of year x - mean over years)/sd of yearly means
                   zScore = (mean_temperature - overall_mean_hist) / overall_sd_hist)
   
-  overall_mean_hist <- unique(scenario_temp_hist$overall_mean_hist)
+  overall_mean_hist <- unique(scenario_temp_hist_perRun$overall_mean_hist)
+  
+  scenario_temp_hist <- rbind(scenario_temp_hist, scenario_temp_hist_perRun)
   
   ### future period
-  scenario_temp_fut <- scenario_temp %>%
+  scenario_temp_fut_perRun <- scenario_temp %>%
     dplyr::filter(year > max(biological_data$year)) %>%
     # get mean and standard deviation over all years
     dplyr::mutate(overall_mean_fut = mean(mean_temperature),
@@ -108,6 +130,9 @@ model_validation <- function(measured_temperatures,
                   # z-scores as (mean of year x - mean over years)/sd of yearly means
                   zScore = (mean_temperature - overall_mean_hist) / overall_sd_fut)
   
+  scenario_temp_fut <- rbind(scenario_temp_fut, scenario_temp_fut_perRun)
+  
+  }
   
   ## 3. Biological data ####
   
@@ -185,7 +210,7 @@ model_validation <- function(measured_temperatures,
         # get slope
         model_pred_year <- lm(predicted_bb_date ~ year, data = predicted_budburst)
         slope_pred_year <- as.numeric(model_pred_year$coefficients[2])
-        df_slope_pred_year <- data.frame(scenario = scenario, run = r, sim = paste0("sim_", s), slope = slope_pred_year)
+        df_slope_pred_year <- data.frame(scenario = scenario, run = r, sim = paste0("sim_", 1), slope = slope_pred_year)
         
         # add data to data frames
         scenario_slopes_pred_year <- rbind(scenario_slopes_pred_year, df_slope_pred_year) 
@@ -199,8 +224,8 @@ model_validation <- function(measured_temperatures,
     
     # visually compare slopes
     plot_validation <- ggplot2::ggplot(slopes_combined) +
-      ggplot2::geom_histogram(aes(y = ..density.., x = slope, fill = scenario), binwidth = 0.01) +
-      scale_fill_brewer(palette = "Dark2") +  
+      ggplot2::geom_histogram(aes(y = after_stat(density), x = slope, fill = scenario), colour = "black", binwidth = 0.01) +
+      scale_fill_manual(values = scenario_colours) +  
       ggplot2::geom_vline(xintercept = slope_bb_year, linewidth = 2) +
       ggplot2::theme_classic() +
       ggplot2::labs(x = "Slope (predicted bud burst ~ year)", y = "Density")
@@ -291,8 +316,8 @@ model_validation <- function(measured_temperatures,
     
     # visually compare slopes
     plot_validation <- ggplot2::ggplot(slopes_combined) +
-      ggplot2::geom_histogram(aes(y = ..density.., x = slope, fill = scenario), binwidth = 0.01) +
-      scale_fill_brewer(palette = "Dark2") +  
+      ggplot2::geom_histogram(aes(y = after_stat(density), x = slope, fill = scenario), colour = "black", binwidth = 0.01) +
+      scale_fill_manual(values = scenario_colours) +  
       ggplot2::geom_vline(xintercept = slope_bb_year, linewidth = 2) +
       ggplot2::theme_classic() +
       ggplot2::labs(x = "Slope (predicted bud burst ~ year)", y = "Density")
@@ -309,10 +334,22 @@ model_validation <- function(measured_temperatures,
     
     return(tibble::lst(budburst_temp, scenario_temp_hist, scenario_temp_fut, model_for_prediction_zScore, plot_validation, plot_zScore))
   }
+ 
 }
 
 # IV. Use functions -------------------------------------------------------
 # with zScores
+# RCP 4.5
+Validation_RCP4.5_zScores <- model_validation(measured_temperatures = temp,
+                                              climwin_output = first_window_Qrobur,
+                                              biological_data = avg_annual_budburst_dates %>%
+                                                dplyr::filter(stringr::str_detect(scientificName, "Quercus robur")),
+                                              scenario = "RCP45",
+                                              scenario_data = scenario_data_all,
+                                              use_zScores = "yes",
+                                              number_simulations = 100)
+
+# RCP 8.5
 Validation_RCP8.5_zScores <- model_validation(measured_temperatures = temp,
                                               climwin_output = first_window_Qrobur,
                                               biological_data = avg_annual_budburst_dates %>%
@@ -320,8 +357,51 @@ Validation_RCP8.5_zScores <- model_validation(measured_temperatures = temp,
                                               scenario = "RCP85",
                                               scenario_data = scenario_data_all,
                                               use_zScores = "yes",
-                                              number_simulations = 20)
+                                              number_simulations = 100)
 
+# 1.5 °C OS
+Validation_1pt5degC_OS_zScores <- model_validation(measured_temperatures = temp,
+                                              climwin_output = first_window_Qrobur,
+                                              biological_data = avg_annual_budburst_dates %>%
+                                                dplyr::filter(stringr::str_detect(scientificName, "Quercus robur")),
+                                              scenario = "1pt5degC_OS",
+                                              scenario_data = scenario_data_all,
+                                              use_zScores = "yes",
+                                              number_simulations = 100)
+
+# 2.0 °C
+Validation_2pt0degC_zScores <- model_validation(measured_temperatures = temp,
+                                              climwin_output = first_window_Qrobur,
+                                              biological_data = avg_annual_budburst_dates %>%
+                                                dplyr::filter(stringr::str_detect(scientificName, "Quercus robur")),
+                                              scenario = "2pt0degC",
+                                              scenario_data = scenario_data_all,
+                                              use_zScores = "yes",
+                                              number_simulations = 100)
+# 1.5 °C
+Validation_1pt5degC_zScores <- model_validation(measured_temperatures = temp,
+                                              climwin_output = first_window_Qrobur,
+                                              biological_data = avg_annual_budburst_dates %>%
+                                                dplyr::filter(stringr::str_detect(scientificName, "Quercus robur")),
+                                              scenario = "1pt5degC",
+                                              scenario_data = scenario_data_all,
+                                              use_zScores = "yes",
+                                              number_simulations = 100)
+
+
+
+
+validation_plot_all <- ggpubr::ggarrange(Validation_1pt5degC_zScores$plot_validation, 
+                                         Validation_2pt0degC_zScores$plot_validation, 
+                                         Validation_1pt5degC_OS_zScores$plot_validation, 
+                                         Validation_RCP8.5_zScores$plot_validation, 
+                                         Validation_RCP4.5_zScores$plot_validation,
+                                         nrow = 3, ncol = 2)
+
+
+# V. Run function for all scenarios in one go -----------------------------
+
+# Note: Works, but I don't know how to assign reasonable names to list elements, i.e., each scenario, so that the ouput can be further used
 
 # Validation_all_scenarios <- purrr::map(.x = c("1pt5degC", "1pt5degC_OS", "2pt0degC", "RCP85", "RCP45"),
 #                                        .f = ~{
@@ -333,26 +413,14 @@ Validation_RCP8.5_zScores <- model_validation(measured_temperatures = temp,
 #                                                                     scenario_data = scenario_data_all,
 #                                                                     use_zScores = "yes",
 #                                                                     number_simulations = 20)
-#                                          return(output)
+# 
 #                                        },
-#                                        .progress = TRUE) %>%
-#   purrr::list_c()
+#                                        .progress = TRUE)
 
-# with mean temperatures
-Validation_RCP8.5 <- model_validation(measured_temperatures = temp,
-                              climwin_output = first_window_Qrobur,
-                              biological_data = avg_annual_budburst_dates %>%
-                                dplyr::filter(stringr::str_detect(scientificName, "Quercus robur")),
-                              scenario = "RCP85",
-                              scenario_data = scenario_data_all,
-                              use_zScores = "no",
-                              number_simulations = 20)
+# V. Save output for forecasting ------------------------------------------
 
-
-
-
-# save output for forecasting script
-# save(hindcast_bb_zScore, file = here::here("data", "hindcast_budburst_zScore.rda"))
-# save(hindcast_bb, file = here::here("data", "hindcast_budburst.rda"))
-# save(KNMI_temp_zScore, file = here::here("data", "KNMI_temp_zScore.rda"))
-# save(KNMI_temp, file = here::here("data", "KNMI_temp.rda"))
+# save(Validation_RCP4.5_zScores, file = here::here("data", "Validation_RCP4.5_zScores.rda"))
+# save(Validation_RCP8.5_zScores, file = here::here("data", "Validation_RCP8.5_zScores.rda"))
+# save(Validation_1pt5degC_OS_zScores, file = here::here("data", "Validation_1pt5degC_OS_zScores.rda"))
+# save(Validation_2pt0degC_zScores, file = here::here("data", "Validation_2pt0degC_zScores.rda"))
+# save(Validation_1pt5degC_zScores, file = here::here("data", "Validation_1pt5degC_zScores.rda"))
