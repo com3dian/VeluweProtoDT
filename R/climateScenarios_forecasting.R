@@ -3,7 +3,7 @@
 
 # Author: Cherine Jantzen
 # Created: 08/01/2024
-# Updated: 16/01/2024
+# Updated: 17/01/2024
 
 # I. Preparation ----------------------------------------------------------
 
@@ -13,10 +13,18 @@
 # load(file = here::here("data", "Validation_2pt0degC_zScores.rda"))
 # load(file = here::here("data", "Validation_1pt5degC_zScores.rda"))
 
-# set colour palette
-scenario_colours <- c("RCP45" = "darkblue", "RCP85" = "orange", "1pt5degC" = "green", 
-                      "1pt5degC_OS" = "blue", "2pt0degC" = "#294C60", "measured" = "#820933")
+# load packages 
+library(dplyr)
+library(ggplot2)
 
+# set colour palette
+scenario_colours <- c("RCP45" = "darkblue", "RCP85" = "orange", "1pt5degC" = "green",
+                     "1pt5degC_OS" = "blue", "2pt0degC" = "#294C60", "measured" = "#820933")
+
+
+# alternative colour option
+# scenario_colours <- c("measured" = "#D53E4F", "RCP45" = "#FC8D59", "1pt5degC_OS" = "#FEE08B", 
+#                       "2pt0degC" = "#E6F598", "RCP85" = "#99D594", "1pt5degC" = "#3288BD")
 # II. Function: Forecasting ---------------------------------------------------------
 
 # Arguments
@@ -171,29 +179,26 @@ future_budburst_2pt0degC_zScores <- forecasting_budburst(scenario_temp = Validat
                                                          linear_model = Validation_2pt0degC_zScores$model_for_prediction,
                                                          use_zScore = "yes")
 
-# combine smoothend predictions of all scenarios
-Forecasting_all <- rbind(future_budburst_RCP4.5_zScores$forecasted_budburst_smoothend,
+# combine smoothed predictions of all scenarios
+forecasting_all <- rbind(future_budburst_RCP4.5_zScores$forecasted_budburst_smoothend,
                          future_budburst_RCP8.5_zScores$forecasted_budburst_smoothend,
                          future_budburst_1pt5degC_zScores$forecasted_budburst_smoothend,
                          future_budburst_1pt5degC_OS_zScores$forecasted_budburst_smoothend,
                          future_budburst_2pt0degC_zScores$forecasted_budburst_smoothend)
 
 # plot predicted bud burst of each scenario 
-Forecasting_all %>%
-  group_by(year, scenario_name) %>%
-  summarise(mean = mean(mean_pred_bb_window, na.rm = TRUE),
-            sd = sd(mean_pred_bb_window, na.rm = TRUE),
-            error = (qnorm(0.95) * sd)/sqrt(n()),
-            CI_lower = mean - error,
-            CI_upper = mean + error) %>%
+forecasting_all %>%
+  dplyr::group_by(year, scenario_name) %>%
+  dplyr::summarise(mean = mean(mean_pred_bb_window, na.rm = TRUE),
+                   sd = sd(mean_pred_bb_window, na.rm = TRUE),
+                   error = (qnorm(0.95) * sd)/sqrt(n()),
+                   CI_lower = mean - error,
+                   CI_upper = mean + error) %>%
   ggplot2::ggplot() +
   ggplot2::geom_line(aes(y = mean, x = year, colour = scenario_name), linewidth = 2) +
-  ggplot2::geom_ribbon(aes(x = year, 
-                           ymin = CI_lower, 
-                           ymax = CI_upper, fill = scenario_name), 
-                       alpha = 0.1) +
-  scale_color_manual(values = scenario_colours) + 
-  scale_fill_manual(values = scenario_colours) +
+  ggplot2::geom_ribbon(aes(x = year, ymin = CI_lower, ymax = CI_upper, fill = scenario_name), alpha = 0.1) +
+  ggplot2::scale_color_manual(values = scenario_colours) + 
+  ggplot2::scale_fill_manual(values = scenario_colours) +
   ggplot2::theme_classic() +
   ggplot2::labs(x = "Year",
                 y = "Predicted bud burst date (mean over scenario runs)", 
