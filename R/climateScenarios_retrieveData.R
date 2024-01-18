@@ -2,14 +2,14 @@
 
 # Author: Cherine Jantzen, Stefan Vriend
 # Created: 11/01/2024
-# Updated: 18/01/2024
+# Last updated: 18/01/2024
 
 
 # I. Load packages --------------------------------------------------------
 
 library(tidyverse)
 library(httr)
-
+library(zip)
 
 # II. GitHUb access -------------------------------------------------------
 
@@ -53,5 +53,9 @@ scenario_data_all <- scenario_data_all %>%
 write.csv(scenario_data_all, file = here::here("data", "scenario_temperatures.csv"), row.names = FALSE)
 
 # zip csv to reduce file size
-zip::zip(zipfile = here::here("data", "scenario_temperatures.zip"), files = here::here("data", "scenario_temperatures.csv"))
+zip::zip(zipfile = here::here("data", "scenario_temperatures.zip"),
+         files = here::here("data", "scenario_temperatures.csv"),
+         include_directories = FALSE,
+         mode = "cherry-pick")
+
 file.remove(here::here("data", "scenario_temperatures.csv"))
