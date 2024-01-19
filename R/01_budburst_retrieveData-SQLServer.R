@@ -2,13 +2,12 @@
 
 # Authors: Cherine Jantzen, Stefan Vriend
 # Created: 12/12/2023
-# Last updated: 19/12/2023
+# Last updated: 19/01/2023
 
 # Load packages
 library(DBI)
 library(here)
 library(odbc)
-library(rstudioapi)
 library(tidyverse)
 
 # Connect to NIOO AnE SQL server to retrieve data
@@ -29,7 +28,7 @@ dplyr::tbl(con, dbplyr::in_catalog(catalog = "AnE_Budburst", schema = "dbo", tab
 ## tbl_Budburst
 dplyr::tbl(con, dbplyr::in_catalog(catalog = "AnE_Budburst", schema = "dbo", table = "tbl_Budburst")) %>%
   dplyr::collect() %>%
-  dplyr::select(!c("Observer", "ObserverName", "Remarks", "SysUser", "SysDate")) %>%
+  dplyr::select(!c("ObserverName", "Remarks", "SysUser", "SysDate")) %>%
   write.csv(here::here("data", "tbl_budburst.csv"), row.names = FALSE)
 
 ## tbl_Tree
