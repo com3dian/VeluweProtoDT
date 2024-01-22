@@ -2,17 +2,16 @@
 
 # Author: Cherine Jantzen, Stefan Vriend
 # Created: 05/01/2024
-# Last updated: 18/01/2024
+# Last updated: 22/01/2024
 
 # I. Preparation ----------------------------------------------------------
 
 # load packages
-library(lubridate)
-library(dplyr)
-library(ggplot2)
+library(here)
+library(tidyverse)
 library(ggpubr)
 library(zip)
-library(purrr)
+
 
 # load data
 temp <- read.csv(here::here("data", "temp_climwin_input.csv"))
@@ -398,7 +397,7 @@ validation_all_zScores <- purrr::map(.x = c("1pt5degC", "1pt5degC_OS", "2pt0degC
                                                                   scenario = .x,
                                                                   scenario_data = scenario_data_all,
                                                                   use_zScores = "yes",
-                                                                  number_simulations = 20)
+                                                                  number_simulations = 1000)
 
                                        return(output)
 
@@ -407,6 +406,7 @@ validation_all_zScores <- purrr::map(.x = c("1pt5degC", "1pt5degC_OS", "2pt0degC
 
 validation_plot_all <- ggpubr::ggarrange(plotlist = purrr::map(.x = validation_all_zScores, "plot_validation"),
                                          nrow = 3, ncol = 2)
+validation_plot_all
 
 # V. Save output for forecasting ------------------------------------------
 save(validation_all_zScores, file = here::here("data", "validation_all_zScores.rda"))
