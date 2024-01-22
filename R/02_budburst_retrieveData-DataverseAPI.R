@@ -7,11 +7,7 @@
 
 # Load packages -----------------------------------------------------------
 
-library(httr)
-library(jsonlite)
 library(tidyverse)
-library(stringr)
-
 
 # Function to retrieve data from Dataverse API ----------------------------
 

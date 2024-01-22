@@ -2,14 +2,14 @@
 
 # Authors: Cherine Jantzen, Stefan Vriend
 # Created: 2023-11-30
-# Last updated: 2023-01-19
+# Last updated: 2023-01-22
 
 # Part I: Retrieve data ---------------------------------------------------
 
 # Load packages
-library(lubridate)
 library(tidyverse)
 library(taxize)
+library(here)
 
 # Retrieve bud burst data files as list (including README) from Dataverse
 

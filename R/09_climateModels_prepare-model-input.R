@@ -7,11 +7,9 @@
 # I. Load packages & retrieve data ----------------------------------------------------------
 
 # load packages
-library(dplyr)
+library(tidyverse)
 library(geosphere)
 library(here)
-library(tidyr)
-library(lubridate)
 
 # Read in DwC-A tables
 event <- read.csv(here::here("data", "event.csv"))

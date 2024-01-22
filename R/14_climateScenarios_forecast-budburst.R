@@ -2,7 +2,7 @@
 
 # Author: Cherine Jantzen, Stefan Vriend
 # Created: 08/01/2024
-# Last updated: 18/01/2024
+# Last updated: 22/01/2024
 
 # I. Preparation ----------------------------------------------------------
 
@@ -12,6 +12,7 @@ load(file = here::here("data", "validation_all_zScores.rda"))
 library(dplyr)
 library(tibble)
 library(ggplot2)
+library(here)
 
 # set colour palette
 scenario_colours <- c("measured" = "#D53E4F", "RCP45" = "#B9A6E2" , "1pt5degC_OS" = "#FFD560",
@@ -190,3 +191,5 @@ forecasting_plot <- forecasting_all %>%
                 colour = "Scenario",
                 fill = "Scenario") +
   ggplot2::theme(legend.position = "bottom")
+
+forecasting_plot

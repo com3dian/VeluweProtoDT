@@ -3,14 +3,11 @@
 
 # Author: Stefan Vriend
 # Created: 2023-12-20
-# Last updated: 2024-01-08
+# Last updated: 2024-01-22
 
 # Load packages
-library(xml2)
 library(tidyverse)
-library(rvest)
-library(httr)
-library(jsonlite)
+library(here)
 
 # Function to create meta.xml from Darwin Core tables ---------------------
 
