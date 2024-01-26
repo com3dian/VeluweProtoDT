@@ -2,7 +2,7 @@
 
 # Authors: Cherine Jantzen, Stefan Vriend
 # Created: 2023-11-28
-# Last updated: 2023-12-21
+# Last updated: 2024-01-26
 
 
 # I. Retrieve data & load packages ----------------------------------------
@@ -55,12 +55,14 @@ avg_annual_budburst_dates <- avg_annual_budburst_dates %>%
 
 # Arguments
 # - biological_data: Tibble specifying the biological input data for the climate model, containing biological dates that are tested in format 'dd/mm/yyyy'. Only necessary when the first window is calculated.
+# - climate_data: Tibble specifying the climate data that is used as input for the climate model. 
 # - reference_day: Numeric vector of 2 values specifying the day and month of the reference day before which climate windows are tested. For example, c(31, 5) for the 31st of March.
 # - range: Numeric vector of 2 values specifying the range of days before the reference day in which climate windows are tested. For example, c(181, 0), meaning that windows between 181 days and 0 days before the reference day are tested.
 # - window_number: Choice between "first" and "second", specifies whether the first best window should be calculated or a second window based on the first one.
 # - first_window: Tibble containing the best model data of the first window/iteration of the function. Used as input data when second window should be calculated.
 
 find_climate_window <- function(biological_data = NULL,
+                                climate_data,
                                 range,
                                 reference_day,
                                 window_number = c("first", "second"),
@@ -102,12 +104,12 @@ find_climate_window <- function(biological_data = NULL,
 
   # climwin analysis: Find best window
   best_window <- climwin::slidingwin(baseline = baseline,
-                                     xvar = list(Temp = temp$temperature),
-                                     cdate = temp$factor_date,
+                                     xvar = list(Temp = climate_data$temperature),
+                                     cdate = climate_data$factor_date,
                                      bdate = biological_data$date,
                                      type = "absolute",
                                      refday = reference_day,
-                                     spatial = list(biological_data$locID, temp$locID),
+                                     spatial = list(biological_data$locID, climate_data$locID),
                                      range = range,
                                      func = "lin",
                                      stat = "mean")
@@ -116,9 +118,9 @@ find_climate_window <- function(biological_data = NULL,
 
   # Create a reference year for calculation of start and end date
   # Note: can be any year that is not a leap year, as dates should be calculated on the basis of regular years
-  reference_year <- dplyr::if_else(condition = lubridate::leap_year(max(temp$year)),
-                                   true = max(temp$year) - 1,
-                                   false = max(temp$year))
+  reference_year <- dplyr::if_else(condition = lubridate::leap_year(max(climate_data$year)),
+                                   true = max(climate_data$year) - 1,
+                                   false = max(climate_data$year))
 
   # Calculate calender date when window opens
   start_date <- lubridate::make_date(year = reference_year,
@@ -130,20 +132,22 @@ find_climate_window <- function(biological_data = NULL,
                                    month = reference_day[2],
                                    day = reference_day[1]) - best_window$combos[1,]$WindowClose
 
-  return(tibble::lst(best_window, biological_data, baseline, range, reference_day, start_date, end_date))
+  return(tibble::lst(best_window, biological_data, baseline, range, reference_day, climate_data, start_date, end_date))
 
 }
 
 
 ## 2. Calculate windows for each species of interest ####
 first_window_Qrobur <- find_climate_window(biological_data = avg_annual_budburst_dates %>%
-                                             dplyr::filter(stringr::str_detect(scientificName, "Quercus robur")) ,
+                                             dplyr::filter(stringr::str_detect(scientificName, "Quercus robur")),
+                                           climate_data = temp,
                                            window_number = "first",
                                            reference_day = c(31, 5),
                                            range = c(181, 0))
 
 first_window_Qrubra <- find_climate_window(biological_data = avg_annual_budburst_dates %>%
                                              dplyr::filter(stringr::str_detect(scientificName, "Quercus rubra")),
+                                           climate_data = temp,
                                            reference_day = c(31, 5),
                                            range = c(181, 0),
                                            window_number = "first")
@@ -153,11 +157,13 @@ first_window_Qrubra <- find_climate_window(biological_data = avg_annual_budburst
 ## best window (i.e., first window) is taken as the input data for the same model as before.
 second_window_Qrobur <- find_climate_window(window_number = "second",
                                             reference_day = c(31, 5),
+                                            climate_data = temp,
                                             range = c(181, 0),
                                             first_window = first_window_Qrobur)
 
 second_window_Qrubra <- find_climate_window(window_number = "second",
                                             reference_day = c(31, 5),
+                                            climate_data = temp,
                                             range = c(181, 0),
                                             first_window = first_window_Qrubra)
 
@@ -178,6 +184,7 @@ randomization_climate_window <- function(x,
   # Get components of x
   baseline <- x$baseline
   biological_data <- x$biological_data
+  climate_data <- x$climate_data
   reference_day <- x$reference_day
   range <- x$range
   dataset <- x$best_window[[1]]$Dataset
@@ -185,12 +192,12 @@ randomization_climate_window <- function(x,
   # Climate window analysis for randomised data
   window_rand <- climwin::randwin(repeats = repeats,
                                   baseline = baseline,
-                                  xvar = list(Temp = temp$temperature),
-                                  cdate = temp$factor_date,
+                                  xvar = list(Temp = climate_data$temperature),
+                                  cdate = climate_data$factor_date,
                                   bdate = biological_data$date,
                                   type = "absolute",
                                   refday = reference_day,
-                                  spatial = list(biological_data$locID, temp$locID),
+                                  spatial = list(biological_data$locID, climate_data$locID),
                                   range = range,
                                   func = "lin",
                                   stat = "mean")
