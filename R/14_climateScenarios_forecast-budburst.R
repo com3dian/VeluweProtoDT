@@ -182,14 +182,27 @@ forecasting_plot <- forecasting_all %>%
                                               ymax = CI_upper,
                                               fill = scenario_name),
                        alpha = 0.1) +
-  ggplot2::scale_color_manual(values = scenario_colours) +
-  ggplot2::scale_fill_manual(values = scenario_colours) +
+  ggplot2::scale_color_manual(values = scenario_colours,
+                              labels = c("1.5°C", "1.5°C OS", "2.0°C", "RCP 4.5", "RCP 8.5")) +
+  ggplot2::scale_fill_manual(values = scenario_colours,
+                             labels = c("1.5°C", "1.5°C OS", "2.0°C", "RCP 4.5", "RCP 8.5")) +
   ggplot2::theme_classic() +
   ggplot2::labs(x = "Year",
                 y = "Predicted bud burst date (mean over scenario runs)",
                 title = "Predicted bud burst dates of the future",
                 colour = "Scenario",
                 fill = "Scenario") +
-  ggplot2::theme(legend.position = "bottom")
+  ggplot2::theme(legend.position = "bottom",
+                 title = element_text(size = 16),
+                 axis.title.x = element_text(size = 15),
+                 axis.text.x = element_text(size = 15),
+                 axis.text.y = element_text(size = 15),
+                 axis.title.y = element_text(size = 15),
+                 legend.title = element_text(size = 15),
+                 legend.text = element_text(size = 13)) +
+  ggplot2::scale_x_continuous(breaks = seq(2020, 2100, 10))
 
 forecasting_plot
+
+ggsave(forecasting_plot, filename = "P:/LTER-LIFE days/plot_forecasting.png", units = "cm", width = 20, height = 15)
+

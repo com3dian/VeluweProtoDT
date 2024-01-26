@@ -351,10 +351,19 @@ model_validation <- function(measured_temperatures,
                               alpha = 0.7,
                               position = "identity",
                               binwidth = 0.01) +
-      ggplot2::scale_fill_manual(values = scenario_colours) +
+      ggplot2::scale_fill_manual(values = scenario_colours, 
+                                 breaks = c("measured", "RCP45", "1pt5degC_OS", "2pt0degC", "RCP85", "1pt5degC")) +
       ggplot2::geom_vline(xintercept = slope_bb_year, linewidth = 2) +
       ggplot2::theme_classic() +
-      ggplot2::labs(x = "Slope (predicted bud burst ~ year)", y = "Density")
+      ggplot2::labs(x = "Slope (predicted bud burst ~ year)", y = "Density") +
+      ggplot2::theme(title = element_text(size = 16),
+                     axis.title.x = element_text(size = 15),
+                     axis.text.x = element_text(size = 15),
+                     axis.text.y = element_text(size = 15),
+                     axis.title.y = element_text(size = 15),
+                     legend.title = element_text(size = 15),
+                     legend.text = element_text(size = 13)) +
+      ggplot2::lims(x = c(-0.8, 0.6), y = c(0, 9))
 
 
     ### plot observed bud burst dates against zScores of temperature
