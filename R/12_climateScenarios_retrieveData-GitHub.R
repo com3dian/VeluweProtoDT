@@ -2,13 +2,13 @@
 
 # Author: Cherine Jantzen, Stefan Vriend
 # Created: 11/01/2024
-# Last updated: 18/01/2024
+# Last updated: 22/01/2024
 
 
 # I. Load packages --------------------------------------------------------
 
+library(here)
 library(tidyverse)
-library(httr)
 library(zip)
 
 # II. GitHUb access -------------------------------------------------------

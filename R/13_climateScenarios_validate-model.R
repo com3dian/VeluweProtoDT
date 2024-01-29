@@ -2,17 +2,16 @@
 
 # Author: Cherine Jantzen, Stefan Vriend
 # Created: 05/01/2024
-# Last updated: 18/01/2024
+# Last updated: 22/01/2024
 
 # I. Preparation ----------------------------------------------------------
 
 # load packages
-library(lubridate)
-library(dplyr)
-library(ggplot2)
+library(here)
+library(tidyverse)
 library(ggpubr)
 library(zip)
-library(purrr)
+
 
 # load data
 temp <- read.csv(here::here("data", "temp_climwin_input.csv"))
@@ -352,10 +351,19 @@ model_validation <- function(measured_temperatures,
                               alpha = 0.7,
                               position = "identity",
                               binwidth = 0.01) +
-      ggplot2::scale_fill_manual(values = scenario_colours) +
+      ggplot2::scale_fill_manual(values = scenario_colours, 
+                                 breaks = c("measured", "RCP45", "1pt5degC_OS", "2pt0degC", "RCP85", "1pt5degC")) +
       ggplot2::geom_vline(xintercept = slope_bb_year, linewidth = 2) +
       ggplot2::theme_classic() +
-      ggplot2::labs(x = "Slope (predicted bud burst ~ year)", y = "Density")
+      ggplot2::labs(x = "Slope (predicted bud burst ~ year)", y = "Density") +
+      ggplot2::theme(title = element_text(size = 16),
+                     axis.title.x = element_text(size = 15),
+                     axis.text.x = element_text(size = 15),
+                     axis.text.y = element_text(size = 15),
+                     axis.title.y = element_text(size = 15),
+                     legend.title = element_text(size = 15),
+                     legend.text = element_text(size = 13)) +
+      ggplot2::lims(x = c(-0.8, 0.6), y = c(0, 9))
 
 
     ### plot observed bud burst dates against zScores of temperature
@@ -398,7 +406,7 @@ validation_all_zScores <- purrr::map(.x = c("1pt5degC", "1pt5degC_OS", "2pt0degC
                                                                   scenario = .x,
                                                                   scenario_data = scenario_data_all,
                                                                   use_zScores = "yes",
-                                                                  number_simulations = 20)
+                                                                  number_simulations = 1000)
 
                                        return(output)
 
@@ -407,6 +415,7 @@ validation_all_zScores <- purrr::map(.x = c("1pt5degC", "1pt5degC_OS", "2pt0degC
 
 validation_plot_all <- ggpubr::ggarrange(plotlist = purrr::map(.x = validation_all_zScores, "plot_validation"),
                                          nrow = 3, ncol = 2)
+validation_plot_all
 
 # V. Save output for forecasting ------------------------------------------
 save(validation_all_zScores, file = here::here("data", "validation_all_zScores.rda"))

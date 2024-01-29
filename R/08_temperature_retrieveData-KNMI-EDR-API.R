@@ -1,7 +1,7 @@
 # Get daily weather data through KNMI EDR API
 # Author: Stefan Vriend
 # Created: 2023/11/20
-# Last updated: 2023/12/22
+# Last updated: 2024/01/22
 
 # Environmental Data Retrieval (EDR)
 # https://developer.dataplatform.knmi.nl/edr-api
@@ -15,9 +15,7 @@
 # Load packages -----------------------------------------------------------
 
 library(tidyverse)
-library(stringr)
-library(httr)
-library(jsonlite)
+library(here)
 
 # I. Function to retrieve data from the EDR API ------------------------------
 

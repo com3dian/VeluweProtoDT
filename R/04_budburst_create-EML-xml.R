@@ -2,15 +2,16 @@
 
 # Authors: Cherine Jantzen, Stefan Vriend
 # Created: 2023-12-04
-# Last updated: 2023-12-20
+# Last updated: 2024-01-22
 
 
 # Load packages
 library(emld)
-library(xml2)
 library(EML)
 library(ids)
 library(keyring)
+library(tidyverse)
+library(here)
 
 # 1. Fill in metadata ----------------------------------------------------
 

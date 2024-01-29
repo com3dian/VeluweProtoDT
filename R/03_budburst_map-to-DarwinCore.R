@@ -2,14 +2,14 @@
 
 # Authors: Cherine Jantzen, Stefan Vriend
 # Created: 2023-11-30
-# Last updated: 2023-12-20
+# Last updated: 2023-01-22
 
 # Part I: Retrieve data ---------------------------------------------------
 
 # Load packages
-library(lubridate)
 library(tidyverse)
 library(taxize)
+library(here)
 
 # Retrieve bud burst data files as list (including README) from Dataverse
 
@@ -246,18 +246,17 @@ occID <-
 # Create occurrence file
 occurrence <-
   tree_species_tax %>%
-  dplyr::select("eventID", #"ObserverName",
+  dplyr::select("eventID", "Observer",
                 "kingdom", "phylum", "class", "order",
                 "family", "genus", "specificEpithet", "scientificName", "TreeID") %>%
   dplyr::mutate(individualCount = 1,
                 basisOfRecord = "HumanObservation",
                 occurrenceStatus = "present",
                 occurrenceRemarks = NA,
-                recordedBy = NA, ## TODO: Replace when observer names are anonymised
+                recordedByID = Observer,
                 occurrenceID = occID$occurrenceID[match(.$eventID, occID$eventID)]) %>%
-  dplyr::rename(#"recordedBy" = "ObserverName",
-                "organismID" = "TreeID") %>%
-  dplyr::select("eventID", "occurrenceID", "recordedBy",
+  dplyr::rename("organismID" = "TreeID") %>%
+  dplyr::select("eventID", "occurrenceID", "recordedByID",
                 "individualCount", "basisOfRecord", "occurrenceStatus",
                 "occurrenceRemarks", "organismID", "scientificName", "kingdom", "phylum", "class", "order",
                 "family", "genus", "specificEpithet")
