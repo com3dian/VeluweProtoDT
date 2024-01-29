@@ -204,5 +204,5 @@ forecasting_plot <- forecasting_all %>%
 
 forecasting_plot
 
-ggsave(forecasting_plot, filename = "P:/LTER-LIFE days/plot_forecasting.png", units = "cm", width = 20, height = 15)
+ggplot2::ggsave(forecasting_plot, filename = paste0(choose.dir(), "plot_forecasting.png"), units = "cm", width = 20, height = 15)
 
