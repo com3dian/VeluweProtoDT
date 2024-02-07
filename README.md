@@ -51,7 +51,7 @@ _Note: ticked boxes are FAIRified datasets._
 ### Veluwe proto-DT <a name="proto-dt">
 This project runs simultaneously to the start-up phase of LTER-LIFE. As such, we put the things we learned in this project to the test by developing a full but simplified workflow that might resemble the envisioned LTER-LIFE experience - a prototype digital twin. This proto-DT focusses on the timing of oak bud burst, derived from NIOO's bud burst dataset (i.e., the first dataset FAIRified as part of FDFDT), in relation to mean temperatures, derived from KNMI, visualised in the virtual research environment (VRE) built by LifeWatch; see [https://github.com/QCDIS/NaaVRE](https://github.com/QCDIS/NaaVRE).
 
-Find GitHub project here: [Veluwe proto-T](https://github.com/orgs/LTER-LIFE/projects/3)
+Find GitHub project here: [Veluwe proto-DT](https://github.com/orgs/LTER-LIFE/projects/3)
 
 ## Style guide <a name="style-guide">
 The following guide describes the programming style that we use throughout this project. The goal of this guide is to make our code easier to read, share, and verify. Heavily influenced by the [tidyverse style guide](https://style.tidyverse.org/index.html).
