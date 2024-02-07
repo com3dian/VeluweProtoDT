@@ -1,15 +1,12 @@
-# FDFDT
-> FAIR Data for Digital Twins
+# VeluweProtoDT
+> Veluwe proto-DT: a digital mini twin of tree phenology and climate scenarios
 
 <details>
 <summary><h3>Table of Contents</h3></summary>
 
   - [Project info](#project-info)
     - [Description](#description)  
-    - [Project partners](#project-partners)
-    - [Deliverables](#deliverables)
-    - [Datasets](#datasets)
-    - [Veluwe proto-DT](#proto-dt)
+    - [Team members](#team-members)
   - [Style guide](#style-guide)
     - [Code metadata](#code-metadata)
     - [Code annotation](#annotation) 
@@ -21,37 +18,16 @@
 ## Project info <a name="project-info"/>
 
 ### Description <a name="description"/>
-A collaborative project by DANS and NIOO about describing the workflow of making (long-tail) ecological data [FAIR](https://www.go-fair.org/fair-principles/) (findable, accessible, interoperable, reusable). This project is a pilot for [LTER-LIFE](https://lter-life.nl/en), a large scale research infrastructure project that will facilitate the development of digital workflows and digital twins of entire ecosystems, in which both DANS and NIOO are partners.
+The goal of this project is to provide a full but simplified workflow that resembles one potential LTER-LIFE user experience. Consider it the naieve ecologists' view of a digital twin. The subject of this proto-DT is the timing of bud burst, derived from NIOO's bud burst dataset (i.e., the first dataset FAIRified as part of the [FDFDT](https://github.com/LTER-LIFE/FDFDT) pilot project, a collaboration between DANS and NIOO), in relation to historic and future temperature scenarios. The workflow is developed using the Notebook-as-a-Virtual-Research-Environment (NaaVRE) framework, built by LifeWatch; see [https://github.com/QCDIS/NaaVRE](https://github.com/QCDIS/NaaVRE).
 
-### Project partners <a name="project-partners"/>
-- Cees Hof / DANS-KNAW
-- Wim Hugo / DANS-KNAW
+Find associated GitHub project here: [Veluwe proto-DT](https://github.com/orgs/LTER-LIFE/projects/3)
+
+### Team members <a name="team-members"/>
 - [Cherine Jantzen](https://github.com/CherineJ) / NIOO-KNAW (ORCID: [0009-0006-0723-2682](https://orcid.org/0009-0006-0723-2682))
-- Marcel Visser / NIOO-KNAW (ORCID: [0000-0002-1456-1939](http://orcid.org/0000-0002-1456-1939))
 - [Stefan Vriend](https://github.com/StefanVriend) / NIOO-KNAW (ORCID: [0000-0002-9006-5988](http://orcid.org/0000-0002-9006-5988))
-
-### Deliverables <a name="deliverables"/>
-- [ ] FAIR and mobilised datasets
-- [ ] Manual: how to FAIRify long-tail ecological data?
-- [ ] Workshop
-- [ ] Data type registry at DANS' Data Station
-
-### Datasets  <a name="datasets"/>
-A number of datasets of various origin, complexity, and structure will be made FAIR as part of this project.  
-Also see: NIOO-DANS Dataset Selection ([Google doc](https://docs.google.com/document/d/1G6mWBRksBo3pVoereOFnTii8pJdH_x-9di6silDFMEI/edit)).  
-_Note: ticked boxes are FAIRified datasets._
-- [ ] Bud burst data / Department of Animal Ecology (AnE), NIOO
-- [ ] Beech crop data / Department of Animal Ecology (AnE), NIOO
-- [ ] CLUE field data / Department of Terrestrial Ecology (TE), NIOO
-- [ ] Nutritional composition cricket data / DANS
-- [ ] Large mammal data / National Park de Hoge Veluwe
-- [ ] Forest inventory data / National Park de Hoge Veluwe
-- [ ] Flora SNL monitoring data / National Park de Hoge Veluwe
-
-### Veluwe proto-DT <a name="proto-dt">
-This project runs simultaneously to the start-up phase of LTER-LIFE. As such, we put the things we learned in this project to the test by developing a full but simplified workflow that might resemble the envisioned LTER-LIFE experience - a prototype digital twin. This proto-DT focusses on the timing of oak bud burst, derived from NIOO's bud burst dataset (i.e., the first dataset FAIRified as part of FDFDT), in relation to mean temperatures, derived from KNMI, visualised in the virtual research environment (VRE) built by LifeWatch; see [https://github.com/QCDIS/NaaVRE](https://github.com/QCDIS/NaaVRE).
-
-Find GitHub project here: [Veluwe proto-DT](https://github.com/orgs/LTER-LIFE/projects/3)
+- Marcel Visser / NIOO-KNAW (ORCID: [0000-0002-1456-1939](http://orcid.org/0000-0002-1456-1939))
+- [Gabriel Pelouze](https://github.com/gpelouze) / LifeWatch ERIC / University of Amsterdam
+- [Spiros Koulouzis](https://github.com/skoulouzis) / LifeWatch ERIC / University of Amsterdam
 
 ## Style guide <a name="style-guide">
 The following guide describes the programming style that we use throughout this project. The goal of this guide is to make our code easier to read, share, and verify. Heavily influenced by the [tidyverse style guide](https://style.tidyverse.org/index.html).
