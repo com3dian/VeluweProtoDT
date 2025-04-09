@@ -176,7 +176,8 @@ class DataLoaderMaker:
             merged_df = template_df.join(season_df)
             
             # Fill missing values
-            merged_df = merged_df.fillna(method='ffill').fillna(method='bfill')
+            # merged_df = merged_df.fillna(method='ffill').fillna(method='bfill')
+            merged_df = merged_df.ffill().bfill()
             
             # Calculate day of year and adjust December days
             doy = merged_df.index.dayofyear.values
