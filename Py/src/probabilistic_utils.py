@@ -102,4 +102,3 @@ def prep_data_for_regression(budburst_df, temp_df,
     regression_df = pd.concat(dict_data_per_year.values(), ignore_index=True)
     return regression_df
 
-
