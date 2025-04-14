@@ -1,18 +1,15 @@
 import os, sys
 import numpy as np 
 import pandas as pd 
-import seaborn as sns
-import matplotlib.pyplot as plt
 from datetime import datetime
-from sklearn.gaussian_process import GaussianProcessRegressor
-from sklearn.gaussian_process.kernels import RBF, WhiteKernel
 import pymc as pm 
-import pytensor as pt
+import pytensor
+import pytensor.tensor as pt
 
 from dataloadermaker import DataLoaderMaker
 
-def prep_data_for_regression(budburst_df, temp_df, 
-                             t_base=4, gdd_month_day_start=None, 
+def prep_data_for_regression(budburst_df=None, temp_df=None, 
+                            #  t_base=4, gdd_month_day_start=None, 
                              species_sel='Quercus robur L.'):
     """
     Prepares the data for regression analysis by merging the budburst and temperature dataframes.
@@ -28,6 +25,17 @@ def prep_data_for_regression(budburst_df, temp_df,
         Each row is one DOY
         Each column is one feature (temperature, GDD, bb_frac).
     """
+    if budburst_df is None or temp_df is None:
+        print('No data provided -- using default data')
+        VeluweTreeData = DataLoaderMaker()
+        VeluweTreeData.load()
+        VeluweTreeData.makeBudBurstDataset()
+        VeluweTreeData.makeSpatioTemporalDataset()
+
+        # Get the budburst and temperature dataframe
+        temp_df = VeluweTreeData.get("temp_climwin_input")
+        budburst_df = VeluweTreeData.get("interpolated")
+
     assert species_sel in budburst_df['species'].unique(), f"Species {species_sel} not found in budburst data {budburst_df['species'].unique()}" 
     season_start_doy = 250 
     dict_data_per_year = {}
@@ -63,42 +71,97 @@ def prep_data_for_regression(budburst_df, temp_df,
         regression_df['bb_cdf'] = regression_df['bb_cdf'].ffill().fillna(0)
         regression_df['date'] = pd.to_datetime(regression_df['date'], format='%Y-%m-%d')
 
-        ## Calculate GDD
-        t_above_base = np.maximum(0, regression_df['temperature'] - t_base)
-        regression_df['t_above_base'] = t_above_base
-        if gdd_month_day_start is not None:
-            assert type(gdd_month_day_start) == tuple, f"gdd_month_day_start {gdd_month_day_start} is not a tuple"
-            assert len(gdd_month_day_start) == 2, f"gdd_month_day_start {gdd_month_day_start} is not a tuple of length 2"
-            gdd_month, gdd_day = gdd_month_day_start
-            assert type(gdd_month) == int and type(gdd_day) == int, f"gdd_month_day_start {gdd_month_day_start} is not a tuple of integers"
-            assert gdd_month >= 1 and gdd_month <= 12, f"gdd_month {gdd_month} is not between 1 and 12"
-            assert gdd_day >= 1 and gdd_day <= 31, f"gdd_day {gdd_day} is not between 1 and 31"
-            if gdd_month > 9:
-                gdd_start = datetime(year=y - 1, month=gdd_month, day=gdd_day, tzinfo=regression_df['date'][0].tzinfo)
+        if False:
+            ## Calculate GDD
+            t_above_base = np.maximum(0, regression_df['temperature'] - t_base)
+            regression_df['t_above_base'] = t_above_base
+            if gdd_month_day_start is not None:
+                assert type(gdd_month_day_start) == tuple, f"gdd_month_day_start {gdd_month_day_start} is not a tuple"
+                assert len(gdd_month_day_start) == 2, f"gdd_month_day_start {gdd_month_day_start} is not a tuple of length 2"
+                gdd_month, gdd_day = gdd_month_day_start
+                assert type(gdd_month) == int and type(gdd_day) == int, f"gdd_month_day_start {gdd_month_day_start} is not a tuple of integers"
+                assert gdd_month >= 1 and gdd_month <= 12, f"gdd_month {gdd_month} is not between 1 and 12"
+                assert gdd_day >= 1 and gdd_day <= 31, f"gdd_day {gdd_day} is not between 1 and 31"
+                if gdd_month > 9:
+                    gdd_start = datetime(year=y - 1, month=gdd_month, day=gdd_day, tzinfo=regression_df['date'][0].tzinfo)
+                else:
+                    gdd_start = datetime(year=y, month=gdd_month, day=gdd_day, tzinfo=regression_df['date'][0].tzinfo)
             else:
-                gdd_start = datetime(year=y, month=gdd_month, day=gdd_day, tzinfo=regression_df['date'][0].tzinfo)
-        else:
-            gdd_doy_start = season_start_doy
-            gdd_start = datetime(year=y - 1, month=1, day=1, tzinfo=regression_df['date'][0].tzinfo) + pd.offsets.DateOffset(days=gdd_doy_start - 1)
-        gdd_start = pd.to_datetime(gdd_start, format='%Y-%m-%d')
-        gdd_start = max(gdd_start, regression_df['date'].min())
-        
-        ## gdd is cumulative t_above_base from gdd_start to date
-        regression_df['gdd'] = regression_df['t_above_base'].cumsum()
-        gdd_on_start_day = regression_df[regression_df['date'] == gdd_start]['gdd']
-        assert len(gdd_on_start_day) == 1, f"gdd_on_start_day {gdd_on_start_day} not unique"
-        gdd_on_start_day = gdd_on_start_day.values[0]
-        regression_df['gdd'] = regression_df['gdd'] - gdd_on_start_day
-        if regression_df['gdd'].dtype == pt.tensor.TensorVariable:
-            regression_df['gdd'] = pm.math.maximum(0, regression_df['gdd'])
-        else:
-            regression_df['gdd'] = np.maximum(0, regression_df['gdd'].values)
-        del regression_df['t_above_base']
+                gdd_doy_start = season_start_doy
+                gdd_start = datetime(year=y - 1, month=1, day=1, tzinfo=regression_df['date'][0].tzinfo) + pd.offsets.DateOffset(days=gdd_doy_start - 1)
+            gdd_start = pd.to_datetime(gdd_start, format='%Y-%m-%d')
+            gdd_start = max(gdd_start, regression_df['date'].min())
+            
+            ## gdd is cumulative t_above_base from gdd_start to date
+            regression_df['gdd'] = regression_df['t_above_base'].cumsum()
+            gdd_on_start_day = regression_df[regression_df['date'] == gdd_start]['gdd']
+            assert len(gdd_on_start_day) == 1, f"gdd_on_start_day {gdd_on_start_day} not unique"
+            gdd_on_start_day = gdd_on_start_day.values[0]
+            regression_df['gdd'] = regression_df['gdd'] - gdd_on_start_day
+            if regression_df['gdd'].dtype == pt.tensor.TensorVariable:
+                regression_df['gdd'] = pm.math.maximum(0, regression_df['gdd'])
+            else:
+                regression_df['gdd'] = np.maximum(0, regression_df['gdd'].values)
+            del regression_df['t_above_base']
         s = f'{y-1}-{y}'
         regression_df['season'] = s
 
         dict_data_per_year[s] = regression_df
-    ## concatenate all years
+
     regression_df = pd.concat(dict_data_per_year.values(), ignore_index=True)
     return regression_df
 
+def bayesian_inference(
+        n_seasons_train=30,
+        mcmc_draw_samples=100,
+        mcmc_tune_samples=200,
+        mcmc_chains=32,
+        mcmc_cores=8
+        ):
+    df_regression = prep_data_for_regression()
+    df_regression['doy'] = df_regression['date'].dt.day_of_year
+    df_regression = df_regression[df_regression['date'].dt.month < 7]  # delete Dec effectively, just to make DOY prior easier to deal with 
+
+    seasons = df_regression["season"].unique()
+    print(f"Number of seasons: {len(seasons)}, training seasons: {n_seasons_train}")
+    train_seasons = seasons[:n_seasons_train]  
+    test_seasons = seasons[n_seasons_train:]  
+
+    df_train = df_regression[df_regression["season"].isin(train_seasons)]
+    df_test = df_regression[df_regression["season"].isin(test_seasons)]
+
+    with pm.Model() as model:
+        t_base = pm.Normal("t_base", mu=5, sigma=2)  # Prior for base temperature
+        start_doy = pm.DiscreteUniform("start_date", lower=60, upper=100)  # Prior for GDD start date
+
+        bb_cdf_obs = df_train['bb_cdf'].values
+        temperature = df_train['temperature'].values
+
+        t_above_base = pm.math.maximum(0, temperature - t_base)  # GDD calculation
+        gdd = pm.math.zeros_like(t_above_base)  # Initialize GDD array
+        for s in df_train['season'].unique():
+            inds_s = df_train['season'] == s
+            inds_s = inds_s.values
+
+            # Calculate GDD for the current season
+            doy_s = df_train['doy'][inds_s].values
+            gdd_s = t_above_base[inds_s]
+            gdd_s = pt.where(doy_s < start_doy, 0, gdd_s)
+            gdd_s = pt.cumsum(gdd_s)
+            gdd = pt.set_subtensor(gdd[inds_s], gdd_s)  # Alternative if gdd is also a tensor
+
+        # Logistic function: maps GDD to cumulative fraction
+        # α = pm.Normal("α", mu=0, sigma=10)  # Intercept
+        β = pm.Normal("β", mu=1, sigma=10)  # Slope
+        # μ = pm.Deterministic("mu", pm.math.sigmoid(α + β * gdd))  # Sigmoid function
+        μ = pm.Deterministic("mu", pm.math.sigmoid(β * gdd))  # Sigmoid function
+        
+        # Likelihood: Normal distribution with uncertainty
+        σ = pm.HalfNormal("σ", sigma=0.1)
+        bb_cdf_likelihood = pm.Normal("bb_cdf", mu=μ, sigma=σ, observed=bb_cdf_obs)
+
+        # Sample posterior
+        trace = pm.sample(draws=mcmc_draw_samples, tune=mcmc_tune_samples, 
+                          chains=mcmc_chains, cores=mcmc_cores, return_inferencedata=True)
+        
+    return trace, df_train, df_test
