@@ -16,5 +16,13 @@ module load GPU
 # Activate your virtual environment
 source ~/venvs/bayesenv/bin/activate
 
+# Default values
+DRAW_SAMPLES=100
+TUNE_SAMPLES=200
+CHAINS=64
+
 # Run your Python script
-python Py/src/bayesianInference.py
+python Py/src/bayesianInference.py \
+    --draw-samples=$DRAW_SAMPLES \
+    --tune-samples=$TUNE_SAMPLES \
+    --chains=$CHAINS
