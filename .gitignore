@@ -8,3 +8,4 @@ __pycache__
 *.pyc
 Py/src/__pycache__/*.pyc
 .pyc
+Py/notebooks/posterior_samples.nc
