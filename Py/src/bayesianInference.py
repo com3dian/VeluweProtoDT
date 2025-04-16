@@ -24,10 +24,6 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-USE_MACOS = False
-if USE_MACOS:
-    pytensor.config.cxx = ''
-
 def main():
     parser = argparse.ArgumentParser(description='Bayesian Inference with MCMC parameters')
     parser.add_argument('--draw-samples', type=int, default=50,
@@ -42,8 +38,14 @@ def main():
                         help='Plot mean fit')
     parser.add_argument('--plot_posterior_fit', type=bool, default=True,
                         help='Plot posterior fit')
+    parser.add_argument('--use_macos', type=bool, default=False)  
     
     args = parser.parse_args()
+
+    USE_MACOS = args.use_macos
+    if USE_MACOS:
+        pytensor.config.cxx = ''
+
 
     posterior_samples, df_train, df_test = pu.bayesian_inference(
         mcmc_draw_samples=args.draw_samples,
@@ -97,7 +99,7 @@ def main():
             gdd_s = np.cumsum(gdd_s)
             gdd_test[inds_s] = gdd_s
 
-        # α_post = float(posterior["α"].mean().values)  # or MAP estimate
+        α_post = float(posterior["α"].mean().values)  # or MAP estimate
         β_post = float(posterior["β"].mean().values)  # or MAP estimate
         mu_test = 1 / (1 + np.exp(-(β_post * gdd_test)))  # Sigmoid function
 
@@ -182,12 +184,12 @@ def main():
         # Initialize array for predictions (n_samples x n_test)
         bb_cdf_samples = np.zeros((n_samples, n_test))
         for i in range(n_samples):
-            # α_sample = float(posterior_samples["α"][i].values)
+            α_sample = float(posterior_samples["α"][i].values)
             β_sample = float(posterior["β"][i].values)
             
             # Logistic function: maps GDD to cumulative fraction
-            bb_cdf_samples[i, :] = 1 / (1 + np.exp(-( β_sample * gdd_samples[i, :])))
-            # bb_cdf_samples[i, :] = 1 / (1 + np.exp(-(α_sample + β_sample * gdd_samples[i, :])))
+            # bb_cdf_samples[i, :] = 1 / (1 + np.exp(-( β_sample * gdd_samples[i, :])))
+            bb_cdf_samples[i, :] = 1 / (1 + np.exp(-(α_sample + β_sample * gdd_samples[i, :])))
 
         bb_cdf_mean = np.mean(bb_cdf_samples, axis=0)  # Mean prediction
         bb_cdf_lower = np.percentile(bb_cdf_samples, 0.5, axis=0)  # 2.5th percentile (lower CI)

@@ -119,10 +119,10 @@ def bayesian_inference(
             gdd = pt.set_subtensor(gdd[inds_s], gdd_s)  # Alternative if gdd is also a tensor
 
         # Logistic function: maps GDD to cumulative fraction
-        # α = pm.Normal("α", mu=0, sigma=10)  # Intercept
+        α = pm.Normal("α", mu=0, sigma=10)  # Intercept
         β = pm.Normal("β", mu=1, sigma=10)  # Slope
-        # μ = pm.Deterministic("mu", pm.math.sigmoid(α + β * gdd))  # Sigmoid function
-        μ = pm.Deterministic("mu", pm.math.sigmoid(β * gdd))  # Sigmoid function
+        μ = pm.Deterministic("mu", pm.math.sigmoid(α + β * gdd))  # Sigmoid function
+        # μ = pm.Deterministic("mu", pm.math.sigmoid(β * gdd))  # Sigmoid function
         
         # Likelihood: Normal distribution with uncertainty
         σ = pm.HalfNormal("σ", sigma=0.1)
