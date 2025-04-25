@@ -9,7 +9,7 @@ import pytensor.tensor as pt
 from dataloadermaker import DataLoaderMaker
 
 def prep_data_for_regression(budburst_df=None, temp_df=None, 
-                            #  t_base=4, gdd_month_day_start=None, 
+                            #  t_base_force=4, gdd_month_day_start=None, 
                              species_sel='Quercus robur L.'):
     """
     Prepares the data for regression analysis by merging the budburst and temperature dataframes.
@@ -17,7 +17,7 @@ def prep_data_for_regression(budburst_df=None, temp_df=None,
     Parameters:
     - budburst_df: DataFrame containing budburst data.
     - temp_df: DataFrame containing temperature data.
-    - t_base: Base temperature for growing degree days (default is 4).
+    - t_base_force: Base temperature for growing degree days (default is 4).
 
     Returns:
     - regression_df: DataFrame containing merged data for regression analysis.
@@ -84,7 +84,8 @@ def bayesian_inference(
         mcmc_draw_samples=100,
         mcmc_tune_samples=200,
         mcmc_chains=32,
-        mcmc_cores=8
+        mcmc_cores=8,
+        infer_chilling=False,
         ):
     df_regression = prep_data_for_regression()
     df_regression['doy'] = df_regression['date'].dt.day_of_year
@@ -99,22 +100,34 @@ def bayesian_inference(
     df_test = df_regression[df_regression["season"].isin(test_seasons)]
 
     with pm.Model() as model:
-        t_base = pm.Normal("t_base", mu=5, sigma=2)  # Prior for base temperature
-        start_doy = pm.DiscreteUniform("start_date", lower=60, upper=100)  # Prior for GDD start date
-
         bb_cdf_obs = df_train['bb_cdf'].values
         temperature = df_train['temperature'].values
 
-        t_above_base = pm.math.maximum(0, temperature - t_base)  # GDD calculation
+        # Define priors
+        t_base_force = pm.Normal("t_base_force", mu=5, sigma=2)  # Prior for base temperature
+        if infer_chilling is False:
+            start_doy = pm.DiscreteUniform("start_date", lower=60, upper=100)  # Prior for GDD start date
+        else:
+            threshold_cum_chill = pm.Normal("threshold_cum_chill", mu=20, sigma=20)  # Prior for chilling threshold
+            t_base_chill = pm.Normal("t_base_chill", mu=5, sigma=2)  # Prior for chilling base temperature
+        
+        t_above_base = pm.math.maximum(0, temperature - t_base_force)  # GDD calculation
         gdd = pm.math.zeros_like(t_above_base)  # Initialize GDD array
         for s in df_train['season'].unique():
             inds_s = df_train['season'] == s
             inds_s = inds_s.values
-
-            # Calculate GDD for the current season
             doy_s = df_train['doy'][inds_s].values
+            
+            if infer_chilling:
+                cum_chill_days = pt.where(temperature[inds_s] < t_base_chill, 1, 0)
+                cum_chill_days = pt.cumsum(cum_chill_days)
+                
+            # Calculate GDD for the current season
             gdd_s = t_above_base[inds_s]
-            gdd_s = pt.where(doy_s < start_doy, 0, gdd_s)
+            if infer_chilling:
+                gdd_s = pt.where(cum_chill_days >= threshold_cum_chill, gdd_s, 0)
+            else:
+                gdd_s = pt.where(doy_s >= start_doy, gdd_s, 0)
             gdd_s = pt.cumsum(gdd_s)
             gdd = pt.set_subtensor(gdd[inds_s], gdd_s)  # Alternative if gdd is also a tensor
 
