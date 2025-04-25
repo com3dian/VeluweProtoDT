@@ -38,7 +38,8 @@ def main():
                         help='Plot mean fit')
     parser.add_argument('--plot_posterior_fit', type=bool, default=True,
                         help='Plot posterior fit')
-    parser.add_argument('--use_macos', type=bool, default=False)  
+    parser.add_argument('--use_macos', type=bool, default=False)
+    parser.add_argument('--job_id', type=int, default=-1)  
     
     args = parser.parse_args()
 
@@ -76,13 +77,12 @@ def main():
 
     if args.plot_mean_fit:
         method_estimate = 'mean'
-        match method_estimate:
-            case 'mean':  # or MAP estimate?
-                t_base_post = float(posterior["t_base"].mean().values)  
-                start_doy_post = float(posterior["start_date"].mean().values)  
-            case 'median':
-                t_base_post = float(posterior["t_base"].median().values) 
-                start_doy_post = float(posterior["start_date"].median().values)  
+        if method_estimate == 'mean':  # or MAP estimate?
+            t_base_post = float(posterior["t_base"].mean().values)  
+            start_doy_post = float(posterior["start_date"].mean().values)  
+        elif method_estimate == 'median':
+            t_base_post = float(posterior["t_base"].median().values) 
+            start_doy_post = float(posterior["start_date"].median().values)  
 
         # Compute GDD for test data
         temperature_test = df_use["temperature"].values
@@ -99,9 +99,9 @@ def main():
             gdd_s = np.cumsum(gdd_s)
             gdd_test[inds_s] = gdd_s
 
-        α_post = float(posterior["α"].mean().values)  # or MAP estimate
-        β_post = float(posterior["β"].mean().values)  # or MAP estimate
-        mu_test = 1 / (1 + np.exp(-(β_post * gdd_test)))  # Sigmoid function
+        alpha_post = float(posterior["alpha"].mean().values)  # or MAP estimate
+        beta_post = float(posterior["beta"].mean().values)  # or MAP estimate
+        mu_test = 1 / (1 + np.exp(-(beta_post * gdd_test)))  # Sigmoid function
 
         df_use["predicted_bb_cdf"] = mu_test
         r2 = r2_score(df_use["bb_cdf"], df_use["predicted_bb_cdf"])
@@ -115,7 +115,7 @@ def main():
         plt.ylabel("Predicted BB CDF")
 
         # Save the figure
-        plt.savefig(os.path.join(save_dir, 'bb_cdf_prediction.png'), 
+        plt.savefig(os.path.join(save_dir, f'bb_cdf_prediction_{args.job_id}.png'), 
                     dpi=300, 
                     bbox_inches='tight')
         plt.close()  # Close the figure to free memory
@@ -140,19 +140,21 @@ def main():
             ax2.set_ylabel("BB CDF")
 
         # Save the multi-panel figure
-        plt.savefig(os.path.join(save_dir, 'seasonal_comparison.png'),
+        plt.savefig(os.path.join(save_dir, f'seasonal_comparison_{args.job_id}.png'),
                     dpi=300,
                     bbox_inches='tight')
         plt.close()  # Close the figure to free memory
 
     if args.plot_posterior_fit:
         ## Plot joint posterior:
-        az.plot_pair(posterior_samples, var_names=["start_date", "t_base"], kind="kde", point_estimate="mean")
-        plt.savefig(os.path.join(save_dir, 'joint_posterior.png'),
-                    dpi=300,
-                    bbox_inches='tight')
-        plt.close()  # Close the figure to free memory
-
+        try:
+            az.plot_pair(posterior_samples, var_names=["start_date", "t_base"], kind="kde", point_estimate="mean")
+            plt.savefig(os.path.join(save_dir, f'joint_posterior_{args.job_id}.png'),
+                        dpi=300,
+                        bbox_inches='tight')
+            plt.close()  # Close the figure to free memory
+        except ValueError as e:
+            print(f"Error plotting joint posterior: {e}")
         df_use = df_test
 
         # Extract posterior samples (e.g., 1000 samples)
@@ -184,12 +186,12 @@ def main():
         # Initialize array for predictions (n_samples x n_test)
         bb_cdf_samples = np.zeros((n_samples, n_test))
         for i in range(n_samples):
-            α_sample = float(posterior_samples["α"][i].values)
-            β_sample = float(posterior["β"][i].values)
+            alpha_sample = float(posterior["alpha"][i].values)
+            beta_sample = float(posterior["beta"][i].values)
             
             # Logistic function: maps GDD to cumulative fraction
-            # bb_cdf_samples[i, :] = 1 / (1 + np.exp(-( β_sample * gdd_samples[i, :])))
-            bb_cdf_samples[i, :] = 1 / (1 + np.exp(-(α_sample + β_sample * gdd_samples[i, :])))
+            # bb_cdf_samples[i, :] = 1 / (1 + np.exp(-( beta_sample * gdd_samples[i, :])))
+            bb_cdf_samples[i, :] = 1 / (1 + np.exp(-(alpha_sample + beta_sample * gdd_samples[i, :])))
 
         bb_cdf_mean = np.mean(bb_cdf_samples, axis=0)  # Mean prediction
         bb_cdf_lower = np.percentile(bb_cdf_samples, 0.5, axis=0)  # 2.5th percentile (lower CI)
@@ -223,7 +225,7 @@ def main():
         fig.suptitle('Evaluation of the model on test data', weight='bold')
         
         # Save the figure with uncertainty bands
-        plt.savefig(os.path.join(save_dir, 'seasonal_comparison_with_uncertainty.png'),
+        plt.savefig(os.path.join(save_dir, f'seasonal_comparison_with_uncertainty_{args.job_id}.png'),
                     dpi=300,
                     bbox_inches='tight')
         plt.close()  # Close the figure to free memory
