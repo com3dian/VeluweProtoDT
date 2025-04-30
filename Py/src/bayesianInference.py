@@ -152,14 +152,14 @@ def main():
         try:
             if args.infer_chilling:
                 az.plot_pair(posterior_samples, var_names=['t_base_force', 't_base_chill', 'threshold_cum_chill'],
-                            kind='kde')
+                            kind='kde', marginals=True)
                 plt.savefig(os.path.join(save_dir, f'joint_posterior_temperature_{args.job_id}.png'),
                         dpi=300,
                         bbox_inches='tight')
                 plt.close()  # Close the figure to free memory
 
-                az.plot_pair(posterior_samples, var_names=['alpha', 'beta', 'sigma'],
-                            kind='kde')
+                az.plot_pair(posterior_samples, var_names=['alpha', 'beta', 'threshold_cum_chill'],
+                            kind='kde', marginals=True)
                 plt.savefig(os.path.join(save_dir, f'joint_posterior_modelfit_{args.job_id}.png'),
                         dpi=300,
                         bbox_inches='tight')
@@ -200,8 +200,6 @@ def main():
                 doy_s = df_use["doy"][inds_s].values
 
                 if args.infer_chilling:
-                    # cum_chill_days = pt.where(temperature_test[inds_s] < t_base_chill_sample, 1, 0)
-                    # cum_chill_days = pt.cumsum(cum_chill_days)
                     cum_chill_days = np.zeros_like(doy_s)
                     cum_chill_days[temperature_test[inds_s] < t_base_chill_sample] = 1
                     cum_chill_days = np.cumsum(cum_chill_days)
