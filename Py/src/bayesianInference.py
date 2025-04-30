@@ -11,6 +11,7 @@ import pytensor.tensor as pt
 from sklearn.metrics import r2_score
 import argparse
 import logging
+from datetime import datetime
 
 sys.path.append(os.path.abspath(os.path.join(os.getcwd(), os.pardir, 'src')))
 from dataloadermaker import DataLoaderMaker
@@ -75,6 +76,12 @@ def main():
 
     # Get posterior samples
     posterior = az.extract(posterior_samples)
+    timestamp = datetime.now().strftime("%Y-%m-%d-%H%M")
+    hparam_info_str = f'{args.tune_samples} tune, {args.draw_samples} draw, {args.chains} chains'
+    if args.infer_chilling:
+        hparam_info_str += 'CHILL + FORCE'
+    else:
+        hparam_info_str += 'FORCE ONLY'
 
     if args.plot_mean_fit:
         assert False, 'deprecated'
@@ -142,7 +149,7 @@ def main():
             ax2.set_ylabel("BB CDF")
 
         # Save the multi-panel figure
-        plt.savefig(os.path.join(save_dir, f'seasonal_comparison_{args.job_id}.png'),
+        plt.savefig(os.path.join(save_dir, f'seasonal_comparison_{args.job_id}_{timestamp}.png'),
                     dpi=300,
                     bbox_inches='tight')
         plt.close()  # Close the figure to free memory
@@ -153,20 +160,22 @@ def main():
             if args.infer_chilling:
                 az.plot_pair(posterior_samples, var_names=['t_base_force', 't_base_chill', 'threshold_cum_chill'],
                             kind='kde', marginals=True)
-                plt.savefig(os.path.join(save_dir, f'joint_posterior_temperature_{args.job_id}.png'),
+                plt.suptitle(hparam_info_str, weight='bold', fontsize=10)
+                plt.savefig(os.path.join(save_dir, f'joint_posterior_temperature_{args.job_id}_{timestamp}.png'),
                         dpi=300,
                         bbox_inches='tight')
                 plt.close()  # Close the figure to free memory
 
                 az.plot_pair(posterior_samples, var_names=['alpha', 'beta', 'threshold_cum_chill'],
                             kind='kde', marginals=True)
-                plt.savefig(os.path.join(save_dir, f'joint_posterior_modelfit_{args.job_id}.png'),
+                plt.suptitle(hparam_info_str, weight='bold', fontsize=10)
+                plt.savefig(os.path.join(save_dir, f'joint_posterior_modelfit_{args.job_id}_{timestamp}.png'),
                         dpi=300,
                         bbox_inches='tight')
                 plt.close()  # Close the figure to free memory
             else:
                 az.plot_pair(posterior_samples, var_names=["start_date", "t_base_force"], kind="kde", point_estimate="mean")
-                plt.savefig(os.path.join(save_dir, f'joint_posterior_{args.job_id}.png'),
+                plt.savefig(os.path.join(save_dir, f'joint_posterior_{args.job_id}_{timestamp}.png'),
                             dpi=300,
                             bbox_inches='tight')
                 plt.close()  # Close the figure to free memory
@@ -254,10 +263,10 @@ def main():
             curr_ax.set_ylabel("Temperature")
             ax2.set_ylabel("BB CDF")
 
-        fig.suptitle('Evaluation of the model on test data', weight='bold')
+        fig.suptitle('Evaluation of the model on test data\n' + hparam_info_str, weight='bold', fontsize=10)
         
         # Save the figure with uncertainty bands
-        plt.savefig(os.path.join(save_dir, f'seasonal_comparison_with_uncertainty_{args.job_id}.png'),
+        plt.savefig(os.path.join(save_dir, f'seasonal_comparison_with_uncertainty_{args.job_id}_{timestamp}.png'),
                     dpi=300,
                     bbox_inches='tight')
         plt.close()  # Close the figure to free memory

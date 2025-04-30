@@ -18,7 +18,7 @@ source ~/venvs/bayesenv/bin/activate
 # Default values
 DRAW_SAMPLES=500
 TUNE_SAMPLES=500
-CHAINS=16
+CHAINS=8
 
 # Run your Python script
 python Py/src/bayesianInference.py \

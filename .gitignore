@@ -4,11 +4,13 @@
 .Ruserdata
 *.Rproj
 
+Py/notebooks/posterior_samples.nc
+logs/*
+fg/*
+posterior_samples/*
+
 __pycache__
 *.pyc
 Py/src/__pycache__/*.pyc
 .pyc
-Py/notebooks/posterior_samples.nc
-logs/*
-posterior_samples/*
 .DS_Store
