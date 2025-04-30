@@ -40,6 +40,8 @@ def main():
                         help='Plot posterior fit')
     parser.add_argument('--use_macos', type=bool, default=False)
     parser.add_argument('--job_id', type=int, default=-1)  
+    parser.add_argument('--infer_chilling', type=bool, default=False)
+    parser.add_argument('--n_cores', type=int, default=8)
     
     args = parser.parse_args()
 
@@ -47,11 +49,12 @@ def main():
     if USE_MACOS:
         pytensor.config.cxx = ''
 
-
     posterior_samples, df_train, df_test = pu.bayesian_inference(
         mcmc_draw_samples=args.draw_samples,
         mcmc_tune_samples=args.tune_samples,
-        mcmc_chains=args.chains
+        mcmc_chains=args.chains,
+        infer_chilling=args.infer_chilling,
+        mcmc_cores=args.n_cores
     )
 
     # Get the parent directory of the current script
@@ -73,9 +76,8 @@ def main():
     # Get posterior samples
     posterior = az.extract(posterior_samples)
 
-    
-
     if args.plot_mean_fit:
+        assert False, 'deprecated'
         method_estimate = 'mean'
         if method_estimate == 'mean':  # or MAP estimate?
             t_base_post = float(posterior["t_base"].mean().values)  
@@ -148,36 +150,68 @@ def main():
     if args.plot_posterior_fit:
         ## Plot joint posterior:
         try:
-            az.plot_pair(posterior_samples, var_names=["start_date", "t_base"], kind="kde", point_estimate="mean")
-            plt.savefig(os.path.join(save_dir, f'joint_posterior_{args.job_id}.png'),
+            if args.infer_chilling:
+                az.plot_pair(posterior_samples, var_names=['t_base_force', 't_base_chill', 'threshold_cum_chill'],
+                            kind='kde')
+                plt.savefig(os.path.join(save_dir, f'joint_posterior_temperature_{args.job_id}.png'),
                         dpi=300,
                         bbox_inches='tight')
-            plt.close()  # Close the figure to free memory
+                plt.close()  # Close the figure to free memory
+
+                az.plot_pair(posterior_samples, var_names=['alpha', 'beta', 'sigma'],
+                            kind='kde')
+                plt.savefig(os.path.join(save_dir, f'joint_posterior_modelfit_{args.job_id}.png'),
+                        dpi=300,
+                        bbox_inches='tight')
+                plt.close()  # Close the figure to free memory
+            else:
+                az.plot_pair(posterior_samples, var_names=["start_date", "t_base_force"], kind="kde", point_estimate="mean")
+                plt.savefig(os.path.join(save_dir, f'joint_posterior_{args.job_id}.png'),
+                            dpi=300,
+                            bbox_inches='tight')
+                plt.close()  # Close the figure to free memory
         except ValueError as e:
             print(f"Error plotting joint posterior: {e}")
         df_use = df_test
 
+
         # Extract posterior samples (e.g., 1000 samples)
-        n_samples = len(posterior["t_base"])  # Number of posterior samples
+        n_samples = len(posterior["t_base_force"])  # Number of posterior samples
         temperature_test = df_use["temperature"].values
         n_test = len(temperature_test)  # Number of test observations
 
         # Initialize array to store GDD predictions (n_samples x n_test)
         gdd_samples = np.zeros((n_samples, n_test))
-        for i in range(n_samples):
-            t_base_sample = float(posterior["t_base"][i].values)
-            start_doy_sample = float(posterior["start_date"][i].values)
 
-            t_above_base_test = np.maximum(0, temperature_test - t_base_sample)
+        for i in range(n_samples):
+            t_base_force_sample = float(posterior["t_base_force"][i].values)
+            if args.infer_chilling:
+                t_base_chill_sample = float(posterior["t_base_chill"][i].values)
+                threshold_cum_chill_sample = float(posterior["threshold_cum_chill"][i].values)
+            else:
+                start_doy_sample = float(posterior["start_date"][i].values)
+
+            t_above_base_test = np.maximum(0, temperature_test - t_base_force_sample)
 
             gdd_test = np.zeros_like(t_above_base_test)
             for s in df_use["season"].unique():
                 inds_s = df_use["season"] == s
                 inds_s = inds_s.values
-
                 doy_s = df_use["doy"][inds_s].values
-                gdd_s = t_above_base_test[inds_s]
-                gdd_s[doy_s < start_doy_sample] = 0  # Set GDD to 0 before start date
+
+                if args.infer_chilling:
+                    # cum_chill_days = pt.where(temperature_test[inds_s] < t_base_chill_sample, 1, 0)
+                    # cum_chill_days = pt.cumsum(cum_chill_days)
+                    cum_chill_days = np.zeros_like(doy_s)
+                    cum_chill_days[temperature_test[inds_s] < t_base_chill_sample] = 1
+                    cum_chill_days = np.cumsum(cum_chill_days)
+
+                    # Calculate GDD for the current season
+                    gdd_s = t_above_base_test[inds_s]
+                    gdd_s[cum_chill_days < threshold_cum_chill_sample] = 0
+                else:
+                    gdd_s = t_above_base_test[inds_s]
+                    gdd_s[doy_s < start_doy_sample] = 0  # Set GDD to 0 before start date
                 gdd_s = np.cumsum(gdd_s)  # Compute cumulative sum
                 gdd_test[inds_s] = gdd_s
 
