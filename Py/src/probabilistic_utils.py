@@ -100,18 +100,19 @@ def bayesian_inference(
     df_test = df_regression[df_regression["season"].isin(test_seasons)]
 
     with pm.Model() as model:
+        ## Extract data
         bb_cdf_obs = df_train['bb_cdf'].values
         temperature = df_train['temperature'].values
 
-        # Define priors
+        ## Define priors
         t_base_force = pm.Normal("t_base_force", mu=5, sigma=2)  # Prior for base temperature
         if infer_chilling is False:
             start_doy = pm.DiscreteUniform("start_date", lower=60, upper=100)  # Prior for GDD start date
         else:
-            # threshold_cum_chill = pm.Normal("threshold_cum_chill", mu=20, sigma=20)  # Prior for chilling threshold
             threshold_cum_chill = pm.DiscreteUniform("threshold_cum_chill", lower=0, upper=50)  # Prior for chilling threshold
             t_base_chill = pm.Normal("t_base_chill", mu=5, sigma=2)  # Prior for chilling base temperature
         
+        ## Calculate variables
         t_above_base = pm.math.maximum(0, temperature - t_base_force)  # GDD calculation
         gdd = pm.math.zeros_like(t_above_base)  # Initialize GDD array
         for s in df_train['season'].unique():
@@ -123,7 +124,6 @@ def bayesian_inference(
                 cum_chill_days = pt.where(temperature[inds_s] < t_base_chill, 1, 0)
                 cum_chill_days = pt.cumsum(cum_chill_days)
                 
-            # Calculate GDD for the current season
             gdd_s = t_above_base[inds_s]
             if infer_chilling:
                 gdd_s = pt.where(cum_chill_days >= threshold_cum_chill, gdd_s, 0)
@@ -132,14 +132,12 @@ def bayesian_inference(
             gdd_s = pt.cumsum(gdd_s)
             gdd = pt.set_subtensor(gdd[inds_s], gdd_s)  # Alternative if gdd is also a tensor
 
-        # Logistic function: maps GDD to cumulative fraction
+        ## Logistic function: maps GDD to cumulative fraction
         alpha = pm.Normal("alpha", mu=0, sigma=10)  # Intercept
-        # beta = pm.Normal("beta", mu=1, sigma=10)  # Slope
         beta = pm.LogNormal("beta", mu=0, sigma=1)  # Slope
         mu = pm.Deterministic("mu", pm.math.sigmoid(alpha + beta * gdd))  # Sigmoid function
-        # mu = pm.Deterministic("mu", pm.math.sigmoid(beta * gdd))  # Sigmoid function
         
-        # Likelihood: Normal distribution with uncertainty
+        ## Likelihood: Normal distribution with uncertainty
         sigma = pm.HalfNormal("sigma", sigma=0.1)
         bb_cdf_likelihood = pm.Normal("bb_cdf", mu=mu, sigma=sigma, observed=bb_cdf_obs)
 

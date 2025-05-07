@@ -3,7 +3,7 @@
 #SBATCH --output=logs/bayes_%j.out
 #SBATCH --error=logs/bayes_%j.err
 #SBATCH --partition=gpu_24         # Using the newer GPU partition
-#SBATCH --gres=gpu:1               # Request 1 GPU
+#SBATCH --gres=gpu:0               # Request 1 GPU
 #SBATCH --cpus-per-task=8          # CPU cores
 #SBATCH --mem=16G                  # Memory
 #SBATCH --time=00:30:00            # Runtime
@@ -26,4 +26,5 @@ python Py/src/bayesianInference.py \
     --tune-samples=$TUNE_SAMPLES \
     --chains=$CHAINS \
     --infer_chilling=1 \
-    --n_cores=32 
+    --n_cores=32 \
+    --mode_model="%{chill and force}"

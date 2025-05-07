@@ -35,17 +35,15 @@ def main():
                         help='Number of MCMC chains')
     parser.add_argument('--save_posterior', type=bool, default=True,
                         help='Save posterior samples')
-    parser.add_argument('--plot_mean_fit', type=bool, default=False,
-                        help='Plot mean fit')
     parser.add_argument('--plot_posterior_fit', type=bool, default=True,
                         help='Plot posterior fit')
     parser.add_argument('--use_macos', type=bool, default=False)
     parser.add_argument('--job_id', type=int, default=-1)  
     parser.add_argument('--infer_chilling', type=int, default=0)
     parser.add_argument('--n_cores', type=int, default=8)
+    parser.add_argument('--mode_model', type=str, default='fast_run')
     
     args = parser.parse_args()
-    print(args)
 
     assert args.infer_chilling in [0, 1], 'infer_chilling must be 0 or 1'
     INFER_CHILLING = args.infer_chilling == 1
@@ -87,77 +85,6 @@ def main():
     else:
         hparam_info_str += ' - FORCE ONLY'
 
-    if args.plot_mean_fit:
-        assert False, 'deprecated'
-        method_estimate = 'mean'
-        if method_estimate == 'mean':  # or MAP estimate?
-            t_base_post = float(posterior["t_base"].mean().values)  
-            start_doy_post = float(posterior["start_date"].mean().values)  
-        elif method_estimate == 'median':
-            t_base_post = float(posterior["t_base"].median().values) 
-            start_doy_post = float(posterior["start_date"].median().values)  
-
-        # Compute GDD for test data
-        temperature_test = df_use["temperature"].values
-        t_above_base_test = np.maximum(0, temperature_test - t_base_post)
-
-        gdd_test = np.zeros_like(t_above_base_test)
-        for s in df_use["season"].unique():
-            inds_s = df_use["season"] == s
-            inds_s = inds_s.values
-
-            doy_s = df_use["doy"][inds_s].values
-            gdd_s = t_above_base_test[inds_s]
-            gdd_s[doy_s < start_doy_post] = 0
-            gdd_s = np.cumsum(gdd_s)
-            gdd_test[inds_s] = gdd_s
-
-        alpha_post = float(posterior["alpha"].mean().values)  # or MAP estimate
-        beta_post = float(posterior["beta"].mean().values)  # or MAP estimate
-        mu_test = 1 / (1 + np.exp(-(beta_post * gdd_test)))  # Sigmoid function
-
-        df_use["predicted_bb_cdf"] = mu_test
-        r2 = r2_score(df_use["bb_cdf"], df_use["predicted_bb_cdf"])
-        logger.info(f"R² on test set: {r2:.3f}")
-
-        # Plot predictions vs actual values
-        plt.figure(figsize=(5, 3))
-        plt.scatter(df_use["bb_cdf"], df_use["predicted_bb_cdf"], alpha=0.5)
-        plt.plot([0, 1], [0, 1], color="red", linestyle="--")
-        plt.xlabel("Actual BB CDF") 
-        plt.ylabel("Predicted BB CDF")
-
-        # Save the figure
-        plt.savefig(os.path.join(save_dir, f'bb_cdf_prediction_{args.job_id}.png'), 
-                    dpi=300, 
-                    bbox_inches='tight')
-        plt.close()  # Close the figure to free memory
-
-
-        seasons = df_use['season'].unique()
-        n_seasons = len(seasons)
-        fig, ax = plt.subplots(figsize=(12, n_seasons // 3 * 3), nrows=n_seasons // 3, ncols=3, gridspec_kw={"hspace": 0.4, "wspace": 0.8})
-
-        for i_s, s in enumerate(seasons):
-            tmp_sel = df_use[df_use['season'] == s]
-            curr_ax = np.ravel(ax)[i_s]
-
-            curr_ax.plot(tmp_sel.doy, tmp_sel.temperature, '.', c='k', markersize=2)
-
-            ax2 = curr_ax.twinx()
-            ax2.plot(tmp_sel.doy, tmp_sel.predicted_bb_cdf, 'r-', lw=2)
-            ax2.plot(tmp_sel.doy, tmp_sel.bb_cdf, 'b-', lw=2)
-            curr_ax.annotate(s, xy=(0.05, 0.9), xycoords='axes fraction', ha='left', va='center', weight='bold')
-            curr_ax.set_xlabel("DOY")
-            curr_ax.set_ylabel("Temperature")
-            ax2.set_ylabel("BB CDF")
-
-        # Save the multi-panel figure
-        plt.savefig(os.path.join(save_dir, f'seasonal_comparison_{args.job_id}_{timestamp}.png'),
-                    dpi=300,
-                    bbox_inches='tight')
-        plt.close()  # Close the figure to free memory
-
     if args.plot_posterior_fit:
         try:
             if INFER_CHILLING:
@@ -192,6 +119,7 @@ def main():
         gdd_samples = np.zeros((n_samples, n_test))
 
         for i in range(n_samples):
+            ## Get posterior sample
             t_base_force_sample = float(posterior["t_base_force"][i].values)
             if INFER_CHILLING:
                 t_base_chill_sample = float(posterior["t_base_chill"][i].values)
@@ -199,8 +127,8 @@ def main():
             else:
                 start_doy_sample = float(posterior["start_date"][i].values)
 
+            ## Compute variables:
             t_above_base_test = np.maximum(0, temperature_test - t_base_force_sample)
-
             gdd_test = np.zeros_like(t_above_base_test)
             for s in df_use["season"].unique():
                 inds_s = df_use["season"] == s
@@ -212,7 +140,6 @@ def main():
                     cum_chill_days[temperature_test[inds_s] < t_base_chill_sample] = 1
                     cum_chill_days = np.cumsum(cum_chill_days)
 
-                    # Calculate GDD for the current season
                     gdd_s = t_above_base_test[inds_s]
                     gdd_s[cum_chill_days < threshold_cum_chill_sample] = 0
                 else:
@@ -220,17 +147,13 @@ def main():
                     gdd_s[doy_s < start_doy_sample] = 0  # Set GDD to 0 before start date
                 gdd_s = np.cumsum(gdd_s)  # Compute cumulative sum
                 gdd_test[inds_s] = gdd_s
-
             gdd_samples[i, :] = gdd_test  # Store sample-specific GDD
 
-        # Initialize array for predictions (n_samples x n_test)
+        ## Predict BB CDF using posterior samples
         bb_cdf_samples = np.zeros((n_samples, n_test))
         for i in range(n_samples):
             alpha_sample = float(posterior["alpha"][i].values)
             beta_sample = float(posterior["beta"][i].values)
-            
-            # Logistic function: maps GDD to cumulative fraction
-            # bb_cdf_samples[i, :] = 1 / (1 + np.exp(-( beta_sample * gdd_samples[i, :])))
             bb_cdf_samples[i, :] = 1 / (1 + np.exp(-(alpha_sample + beta_sample * gdd_samples[i, :])))
 
         bb_cdf_mean = np.mean(bb_cdf_samples, axis=0)  # Mean prediction
@@ -241,8 +164,7 @@ def main():
         df_use["bb_cdf_lower"] = bb_cdf_lower
         df_use["bb_cdf_upper"] = bb_cdf_upper
 
-
-        # Plot predictions with uncertainty (shaded area)
+        ## Plot predictions with uncertainty (shaded area)
         fig, ax = plt.subplots(figsize=(12, 6), nrows=2, ncols=3, gridspec_kw={"hspace": 0.4, "wspace": 0.8})
 
         for i_s, s in enumerate(df_use['season'].unique()):
@@ -254,7 +176,6 @@ def main():
             ax2 = curr_ax.twinx()
             ax2.plot(tmp_sel.doy, tmp_sel.predicted_bb_cdf, 'r-', lw=2)
             ax2.plot(tmp_sel.doy, tmp_sel.bb_cdf, 'b-', lw=1)
-            ## uncertainty:
             ax2.fill_between(x=tmp_sel.doy, y1=tmp_sel.bb_cdf_lower, y2=tmp_sel.bb_cdf_upper, color='red', alpha=0.4)
 
             curr_ax.annotate(s, xy=(0.05, 0.9), xycoords='axes fraction', ha='left', va='center', weight='bold')
@@ -264,10 +185,8 @@ def main():
 
         fig.suptitle('Evaluation of the model on test data\n' + hparam_info_str, weight='bold', fontsize=10)
         
-        # Save the figure with uncertainty bands
         plt.savefig(os.path.join(save_dir, f'seasonal_comparison_with_uncertainty_{args.job_id}_{timestamp}.png'),
-                    dpi=300,
-                    bbox_inches='tight')
+                    dpi=300, bbox_inches='tight')
         plt.close()  # Close the figure to free memory
 
 if __name__ == "__main__":
