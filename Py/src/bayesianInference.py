@@ -41,10 +41,14 @@ def main():
                         help='Plot posterior fit')
     parser.add_argument('--use_macos', type=bool, default=False)
     parser.add_argument('--job_id', type=int, default=-1)  
-    parser.add_argument('--infer_chilling', type=bool, default=False)
+    parser.add_argument('--infer_chilling', type=int, default=0)
     parser.add_argument('--n_cores', type=int, default=8)
     
     args = parser.parse_args()
+    print(args)
+
+    assert args.infer_chilling in [0, 1], 'infer_chilling must be 0 or 1'
+    INFER_CHILLING = args.infer_chilling == 1
 
     USE_MACOS = args.use_macos
     if USE_MACOS:
@@ -54,7 +58,7 @@ def main():
         mcmc_draw_samples=args.draw_samples,
         mcmc_tune_samples=args.tune_samples,
         mcmc_chains=args.chains,
-        infer_chilling=args.infer_chilling,
+        infer_chilling=INFER_CHILLING,
         mcmc_cores=args.n_cores
     )
 
@@ -78,10 +82,10 @@ def main():
     posterior = az.extract(posterior_samples)
     timestamp = datetime.now().strftime("%Y-%m-%d-%H%M")
     hparam_info_str = f'{args.tune_samples} tune, {args.draw_samples} draw, {args.chains} chains'
-    if args.infer_chilling:
-        hparam_info_str += 'CHILL + FORCE'
+    if INFER_CHILLING:
+        hparam_info_str += ' - CHILL & FORCE'
     else:
-        hparam_info_str += 'FORCE ONLY'
+        hparam_info_str += ' - FORCE ONLY'
 
     if args.plot_mean_fit:
         assert False, 'deprecated'
@@ -155,34 +159,29 @@ def main():
         plt.close()  # Close the figure to free memory
 
     if args.plot_posterior_fit:
-        ## Plot joint posterior:
         try:
-            if args.infer_chilling:
-                az.plot_pair(posterior_samples, var_names=['t_base_force', 't_base_chill', 'threshold_cum_chill'],
-                            kind='kde', marginals=True)
-                plt.suptitle(hparam_info_str, weight='bold', fontsize=10)
-                plt.savefig(os.path.join(save_dir, f'joint_posterior_temperature_{args.job_id}_{timestamp}.png'),
-                        dpi=300,
-                        bbox_inches='tight')
-                plt.close()  # Close the figure to free memory
-
-                az.plot_pair(posterior_samples, var_names=['alpha', 'beta', 'threshold_cum_chill'],
-                            kind='kde', marginals=True)
-                plt.suptitle(hparam_info_str, weight='bold', fontsize=10)
-                plt.savefig(os.path.join(save_dir, f'joint_posterior_modelfit_{args.job_id}_{timestamp}.png'),
-                        dpi=300,
-                        bbox_inches='tight')
-                plt.close()  # Close the figure to free memory
+            if INFER_CHILLING:
+                vars_temp = ['t_base_force', 't_base_chill', 'threshold_cum_chill']
+                vars_modelfit = ['alpha', 'beta', 'threshold_cum_chill']
             else:
-                az.plot_pair(posterior_samples, var_names=["start_date", "t_base_force"], kind="kde", point_estimate="mean")
-                plt.savefig(os.path.join(save_dir, f'joint_posterior_{args.job_id}_{timestamp}.png'),
-                            dpi=300,
-                            bbox_inches='tight')
-                plt.close()  # Close the figure to free memory
+                vars_temp = ['start_date', 't_base_force']
+                vars_modelfit = ['alpha', 'beta']
+
+            az.plot_pair(posterior_samples, var_names=vars_temp, kind='kde', marginals=True)
+            plt.suptitle(hparam_info_str, weight='bold', fontsize=10)
+            plt.savefig(os.path.join(save_dir, f'joint_posterior_temperature_{args.job_id}_{timestamp}.png'),
+                        dpi=300, bbox_inches='tight')
+            plt.close()  # Close the figure to free memory
+
+            az.plot_pair(posterior_samples, var_names=vars_modelfit, kind='kde', marginals=True)
+            plt.suptitle(hparam_info_str, weight='bold', fontsize=10)
+            plt.savefig(os.path.join(save_dir, f'joint_posterior_modelfit_{args.job_id}_{timestamp}.png'),
+                        dpi=300, bbox_inches='tight')
+            plt.close()  # Close the figure to free memory
+            
         except ValueError as e:
             print(f"Error plotting joint posterior: {e}")
         df_use = df_test
-
 
         # Extract posterior samples (e.g., 1000 samples)
         n_samples = len(posterior["t_base_force"])  # Number of posterior samples
@@ -194,7 +193,7 @@ def main():
 
         for i in range(n_samples):
             t_base_force_sample = float(posterior["t_base_force"][i].values)
-            if args.infer_chilling:
+            if INFER_CHILLING:
                 t_base_chill_sample = float(posterior["t_base_chill"][i].values)
                 threshold_cum_chill_sample = float(posterior["threshold_cum_chill"][i].values)
             else:
@@ -208,7 +207,7 @@ def main():
                 inds_s = inds_s.values
                 doy_s = df_use["doy"][inds_s].values
 
-                if args.infer_chilling:
+                if INFER_CHILLING:
                     cum_chill_days = np.zeros_like(doy_s)
                     cum_chill_days[temperature_test[inds_s] < t_base_chill_sample] = 1
                     cum_chill_days = np.cumsum(cum_chill_days)

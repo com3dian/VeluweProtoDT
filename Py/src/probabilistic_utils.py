@@ -108,7 +108,8 @@ def bayesian_inference(
         if infer_chilling is False:
             start_doy = pm.DiscreteUniform("start_date", lower=60, upper=100)  # Prior for GDD start date
         else:
-            threshold_cum_chill = pm.Normal("threshold_cum_chill", mu=20, sigma=20)  # Prior for chilling threshold
+            # threshold_cum_chill = pm.Normal("threshold_cum_chill", mu=20, sigma=20)  # Prior for chilling threshold
+            threshold_cum_chill = pm.DiscreteUniform("threshold_cum_chill", lower=0, upper=50)  # Prior for chilling threshold
             t_base_chill = pm.Normal("t_base_chill", mu=5, sigma=2)  # Prior for chilling base temperature
         
         t_above_base = pm.math.maximum(0, temperature - t_base_force)  # GDD calculation
@@ -133,7 +134,8 @@ def bayesian_inference(
 
         # Logistic function: maps GDD to cumulative fraction
         alpha = pm.Normal("alpha", mu=0, sigma=10)  # Intercept
-        beta = pm.Normal("beta", mu=1, sigma=10)  # Slope
+        # beta = pm.Normal("beta", mu=1, sigma=10)  # Slope
+        beta = pm.LogNormal("beta", mu=0, sigma=1)  # Slope
         mu = pm.Deterministic("mu", pm.math.sigmoid(alpha + beta * gdd))  # Sigmoid function
         # mu = pm.Deterministic("mu", pm.math.sigmoid(beta * gdd))  # Sigmoid function
         

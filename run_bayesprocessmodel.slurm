@@ -6,7 +6,7 @@
 #SBATCH --gres=gpu:1               # Request 1 GPU
 #SBATCH --cpus-per-task=8          # CPU cores
 #SBATCH --mem=16G                  # Memory
-#SBATCH --time=01:00:00            # Runtime
+#SBATCH --time=00:30:00            # Runtime
 
 # Load Python module (adjust version to match your env setup)
 module load 2023
@@ -16,13 +16,14 @@ module load GPU
 source ~/venvs/bayesenv/bin/activate
 
 # Default values
-DRAW_SAMPLES=500
-TUNE_SAMPLES=500
-CHAINS=8
+DRAW_SAMPLES=250
+TUNE_SAMPLES=250
+CHAINS=64
 
 # Run your Python script
 python Py/src/bayesianInference.py \
     --draw-samples=$DRAW_SAMPLES \
     --tune-samples=$TUNE_SAMPLES \
     --chains=$CHAINS \
-    --infer_chilling=True
+    --infer_chilling=1 \
+    --n_cores=32 
