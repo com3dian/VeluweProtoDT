@@ -39,15 +39,21 @@ def main():
                         help='Plot posterior fit')
     parser.add_argument('--use_macos', type=bool, default=False)
     parser.add_argument('--job_id', type=int, default=-1)  
-    parser.add_argument('--infer_chilling', type=int, default=0)
     parser.add_argument('--n_cores', type=int, default=8)
-    parser.add_argument('--mode_model', type=str, default='fast_run')
+    parser.add_argument('--mode_model', type=str, default='force_chill')
     
     args = parser.parse_args()
 
-    assert args.infer_chilling in [0, 1], 'infer_chilling must be 0 or 1'
-    INFER_CHILLING = args.infer_chilling == 1
-
+    assert args.mode_model in ['force', 'force_chill', 'force_chill-zoned'], 'mode_model must be force, chill or force-zoned'
+    if args.mode_model == 'force':
+        INFER_CHILLING = False
+        ZONED_CHILLING = False
+    elif args.mode_model == 'force_chill':
+        INFER_CHILLING = True
+        ZONED_CHILLING = False
+    elif args.mode_model == 'force_chill-zoned':
+        INFER_CHILLING = True
+        ZONED_CHILLING = True
     USE_MACOS = args.use_macos
     if USE_MACOS:
         pytensor.config.cxx = ''
@@ -57,6 +63,7 @@ def main():
         mcmc_tune_samples=args.tune_samples,
         mcmc_chains=args.chains,
         infer_chilling=INFER_CHILLING,
+        zoned_chilling=ZONED_CHILLING,
         mcmc_cores=args.n_cores
     )
 
@@ -79,16 +86,14 @@ def main():
     # Get posterior samples
     posterior = az.extract(posterior_samples)
     timestamp = datetime.now().strftime("%Y-%m-%d-%H%M")
-    hparam_info_str = f'{args.tune_samples} tune, {args.draw_samples} draw, {args.chains} chains'
-    if INFER_CHILLING:
-        hparam_info_str += ' - CHILL & FORCE'
-    else:
-        hparam_info_str += ' - FORCE ONLY'
+    hparam_info_str = f'{args.tune_samples} tune, {args.draw_samples} draw, {args.chains} chains, {args.mode_model}'
 
     if args.plot_posterior_fit:
         try:
             if INFER_CHILLING:
                 vars_temp = ['t_base_force', 't_base_chill', 'threshold_cum_chill']
+                if ZONED_CHILLING:
+                    vars_temp += ['t_bottom_chill']
                 vars_modelfit = ['alpha', 'beta', 'threshold_cum_chill']
             else:
                 vars_temp = ['start_date', 't_base_force']
@@ -124,6 +129,8 @@ def main():
             if INFER_CHILLING:
                 t_base_chill_sample = float(posterior["t_base_chill"][i].values)
                 threshold_cum_chill_sample = float(posterior["threshold_cum_chill"][i].values)
+                if ZONED_CHILLING:
+                    t_bottom_chill_sample = float(posterior["t_bottom_chill"][i].values)
             else:
                 start_doy_sample = float(posterior["start_date"][i].values)
 
@@ -135,15 +142,15 @@ def main():
                 inds_s = inds_s.values
                 doy_s = df_use["doy"][inds_s].values
 
+                gdd_s = t_above_base_test[inds_s]
                 if INFER_CHILLING:
                     cum_chill_days = np.zeros_like(doy_s)
                     cum_chill_days[temperature_test[inds_s] < t_base_chill_sample] = 1
+                    if ZONED_CHILLING:
+                        cum_chill_days[temperature_test[inds_s] < t_bottom_chill_sample] = 0
                     cum_chill_days = np.cumsum(cum_chill_days)
-
-                    gdd_s = t_above_base_test[inds_s]
                     gdd_s[cum_chill_days < threshold_cum_chill_sample] = 0
                 else:
-                    gdd_s = t_above_base_test[inds_s]
                     gdd_s[doy_s < start_doy_sample] = 0  # Set GDD to 0 before start date
                 gdd_s = np.cumsum(gdd_s)  # Compute cumulative sum
                 gdd_test[inds_s] = gdd_s
@@ -166,7 +173,7 @@ def main():
 
         ## Plot predictions with uncertainty (shaded area)
         fig, ax = plt.subplots(figsize=(12, 6), nrows=2, ncols=3, gridspec_kw={"hspace": 0.4, "wspace": 0.8})
-
+        ymin, ymax = 10, 10
         for i_s, s in enumerate(df_use['season'].unique()):
             tmp_sel = df_use[df_use['season'] == s]
             curr_ax = np.ravel(ax)[i_s]
@@ -182,9 +189,13 @@ def main():
             curr_ax.set_xlabel("DOY")
             curr_ax.set_ylabel("Temperature")
             ax2.set_ylabel("BB CDF")
+            ymin = min(ymin, curr_ax.get_ylim()[0])
+            ymax = max(ymax, curr_ax.get_ylim()[1])
 
+        for curr_ax in np.ravel(ax):
+            curr_ax.set_ylim(ymin, ymax)
+            
         fig.suptitle('Evaluation of the model on test data\n' + hparam_info_str, weight='bold', fontsize=10)
-        
         plt.savefig(os.path.join(save_dir, f'seasonal_comparison_with_uncertainty_{args.job_id}_{timestamp}.png'),
                     dpi=300, bbox_inches='tight')
         plt.close()  # Close the figure to free memory

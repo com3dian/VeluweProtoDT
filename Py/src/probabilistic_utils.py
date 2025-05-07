@@ -86,6 +86,7 @@ def bayesian_inference(
         mcmc_chains=32,
         mcmc_cores=8,
         infer_chilling=False,
+        zoned_chilling=False,
         ):
     df_regression = prep_data_for_regression()
     df_regression['doy'] = df_regression['date'].dt.day_of_year
@@ -106,11 +107,13 @@ def bayesian_inference(
 
         ## Define priors
         t_base_force = pm.Normal("t_base_force", mu=5, sigma=2)  # Prior for base temperature
-        if infer_chilling is False:
-            start_doy = pm.DiscreteUniform("start_date", lower=60, upper=100)  # Prior for GDD start date
-        else:
+        if infer_chilling:
             threshold_cum_chill = pm.DiscreteUniform("threshold_cum_chill", lower=0, upper=50)  # Prior for chilling threshold
             t_base_chill = pm.Normal("t_base_chill", mu=5, sigma=2)  # Prior for chilling base temperature
+            if zoned_chilling:
+                t_bottom_chill = pm.Normal("t_bottom_chill", mu=0, sigma=2)  # Prior for chilling bottom temperature
+        else:
+            start_doy = pm.DiscreteUniform("start_date", lower=60, upper=100)  # Prior for GDD start date
         
         ## Calculate variables
         t_above_base = pm.math.maximum(0, temperature - t_base_force)  # GDD calculation
@@ -120,12 +123,12 @@ def bayesian_inference(
             inds_s = inds_s.values
             doy_s = df_train['doy'][inds_s].values
             
-            if infer_chilling:
-                cum_chill_days = pt.where(temperature[inds_s] < t_base_chill, 1, 0)
-                cum_chill_days = pt.cumsum(cum_chill_days)
-                
             gdd_s = t_above_base[inds_s]
             if infer_chilling:
+                cum_chill_days = pt.where(temperature[inds_s] < t_base_chill, 1, 0)
+                if zoned_chilling:
+                    cum_chill_days = pt.where(temperature[inds_s] < t_bottom_chill, 0, cum_chill_days)
+                cum_chill_days = pt.cumsum(cum_chill_days)
                 gdd_s = pt.where(cum_chill_days >= threshold_cum_chill, gdd_s, 0)
             else:
                 gdd_s = pt.where(doy_s >= start_doy, gdd_s, 0)

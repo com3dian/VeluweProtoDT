@@ -4,7 +4,7 @@
 #SBATCH --error=logs/bayes_%j.err
 #SBATCH --partition=gpu_24         # Using the newer GPU partition
 #SBATCH --gres=gpu:0               # Request 1 GPU
-#SBATCH --cpus-per-task=8          # CPU cores
+#SBATCH --cpus-per-task=32          # CPU cores
 #SBATCH --mem=16G                  # Memory
 #SBATCH --time=00:30:00            # Runtime
 
@@ -16,15 +16,14 @@ module load GPU
 source ~/venvs/bayesenv/bin/activate
 
 # Default values
-DRAW_SAMPLES=250
-TUNE_SAMPLES=250
-CHAINS=64
+DRAW_SAMPLES=500
+TUNE_SAMPLES=1000
+CHAINS=32
 
 # Run your Python script
 python Py/src/bayesianInference.py \
     --draw-samples=$DRAW_SAMPLES \
     --tune-samples=$TUNE_SAMPLES \
     --chains=$CHAINS \
-    --infer_chilling=1 \
     --n_cores=32 \
-    --mode_model="%{chill and force}"
+    --mode_model="force_chill"
