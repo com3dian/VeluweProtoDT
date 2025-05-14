@@ -80,7 +80,7 @@ def prep_data_for_regression(budburst_df=None, temp_df=None,
     return regression_df
 
 def bayesian_inference(
-        n_seasons_train=30,
+        split_seasons_traintest=None,
         mcmc_draw_samples=100,
         mcmc_tune_samples=200,
         mcmc_chains=32,
@@ -92,10 +92,14 @@ def bayesian_inference(
     df_regression['doy'] = df_regression['date'].dt.day_of_year
     df_regression = df_regression[df_regression['date'].dt.month < 7]  # delete Dec effectively, just to make DOY prior easier to deal with 
 
-    seasons = df_regression["season"].unique()
-    print(f"Number of seasons: {len(seasons)}, training seasons: {n_seasons_train}")
-    train_seasons = seasons[:n_seasons_train]  
-    test_seasons = seasons[n_seasons_train:]  
+    seasons = sorted(df_regression["season"].unique())
+    assert len(seasons) == 36, f"Expected 36 seasons, got {len(seasons)}"
+    assert split_seasons_traintest in [0, 1, 2, 3, 4, 5], f"split_seasons_train must be in [0, 1, 2, 3, 4, 5], got {split_seasons_traintest}"
+    ## Create 6 blocks of 6 consecutive seasons, use split_seasons_train to select the test block 
+    train_seasons = seasons[:split_seasons_traintest * 6] + seasons[(split_seasons_traintest + 1) * 6:]
+    test_seasons = seasons[split_seasons_traintest * 6:(split_seasons_traintest + 1) * 6]
+    assert len(train_seasons) == 30, f"Expected 30 training seasons, got {len(train_seasons)}"
+    print(f"Training seasons: {train_seasons}, test seasons: {test_seasons}")
 
     df_train = df_regression[df_regression["season"].isin(train_seasons)]
     df_test = df_regression[df_regression["season"].isin(test_seasons)]
