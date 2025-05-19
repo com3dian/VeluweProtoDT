@@ -45,6 +45,8 @@ class DataLoaderMaker:
         return self.datasets[varName]
     
     def makeBudBurstDataset(self):
+        
+        assert False, 'Implemention is incomplete -> missing creationg of match-criterion dataframe and merger with interpolated dataframe'
         eventDF = self.get("event")
         occurrenceDF = self.get("occurrence")
         extendedmeasurementorfactDF = self.get("extendedmeasurementorfact")
@@ -100,6 +102,7 @@ class DataLoaderMaker:
         # Merge min_bb and max_bb
         minMaxTable = pd.merge(minAboveCriterion, maxBelowCriterion, on=["year", "TreeID"], how="left")
 
+        assert False, 'Implemention is incomplete -> missing creationg of match-criterion dataframe and merger with interpolated dataframe'
         # For trees where stage 1 was NOT observed during a visit (interpolate)
         interpolated = minMaxTable[minMaxTable["min_value"] != criterionMeasurementValue].copy()
 
@@ -135,6 +138,8 @@ class DataLoaderMaker:
         })
 
         self.dataframes["interpolated"] = interpolated
+
+        assert False, 'Implemention is incomplete -> missing creationg of match-criterion dataframe and merger with interpolated dataframe'
 
     def makeSpatioTemporalDataset(self):
         """
@@ -207,10 +212,8 @@ class DataLoaderMaker:
         }
 
 
-    def preapreDataset(self):
-        self.makeBudBurstDataset()
+    def prepareDataset(self):
         self.makeSpatioTemporalDataset()
         
-
     def prepareAndSplitTrainingTestDataset(self):
         pass
