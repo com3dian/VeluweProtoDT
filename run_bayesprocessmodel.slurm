@@ -27,4 +27,5 @@ python Py/src/bayesianInference.py \
     --chains=$CHAINS \
     --n_cores=32 \
     --mode_model="force_chill-zoned" \
-    --cv
+    --cv \
+    --location_option=2

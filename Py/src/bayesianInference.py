@@ -96,7 +96,9 @@ def main():
         # Get the parent directory of the current script
         current_dir = os.path.dirname(os.path.abspath(__file__))
         parent_dir = os.path.dirname(os.path.dirname(current_dir))
-        save_dir = os.path.join(parent_dir, 'fg')
+        save_dir_base = os.path.join(parent_dir, 'fg')
+        os.makedirs(save_dir, exist_ok=True)
+        save_dir = os.path.join(save_dir_base, timestamp)
         os.makedirs(save_dir, exist_ok=True)
 
         if args.save_posterior:
