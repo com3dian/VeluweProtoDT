@@ -10,7 +10,8 @@ from dataloadermaker import DataLoaderMaker
 
 def prep_data_for_regression(budburst_df=None, temp_df=None, 
                             #  t_base_force=4, gdd_month_day_start=None, 
-                             species_sel='Quercus robur L.'):
+                             species_sel='Quercus robur L.',
+                             location_list=None):
     """
     Prepares the data for regression analysis by merging the budburst and temperature dataframes.
 
@@ -38,10 +39,16 @@ def prep_data_for_regression(budburst_df=None, temp_df=None,
     season_start_doy = 250 
     dict_data_per_year = {}
     years = sorted(budburst_df['year'].unique())
+    if location_list is None:
+        print("No location list provided, using all locations")
+    else:
+        print(f"Filtering data for locations: {location_list}")
+        budburst_df = budburst_df[budburst_df['verbatimLocality'].isin(location_list)]
 
     for y in years:
         bb_sel = budburst_df[np.logical_and(budburst_df['year'] == y, 
                                            budburst_df['species'] == species_sel)]
+        
         if len(bb_sel) == 0:
             print(f"No data for year {y}")
             continue
@@ -85,8 +92,10 @@ def bayesian_inference(
         mcmc_cores=8,
         infer_chilling=False,
         zoned_chilling=False,
+        species_sel='Quercus robur L.',
+        location_list=None
         ):
-    df_regression = prep_data_for_regression()
+    df_regression = prep_data_for_regression(species_sel=species_sel, location_list=location_list)
     df_regression['doy'] = df_regression['date'].dt.day_of_year
     df_regression = df_regression[df_regression['date'].dt.month < 7]  # delete Dec effectively, just to make DOY prior easier to deal with 
 

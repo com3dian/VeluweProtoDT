@@ -41,6 +41,8 @@ def main():
     parser.add_argument('--n_cores', type=int, default=8)
     parser.add_argument('--mode_model', type=str, default='force_chill')
     parser.add_argument('--cv', action='store_true')
+    parser.add_argument('--species', type=str, default='Quercus robur L.')
+    parser.add_argument('--location_option', type=int, default=0)
     
     args = parser.parse_args()
 
@@ -64,6 +66,16 @@ def main():
     else:
         cv_splits = [5]
 
+    species_sel=args.species
+    if args.location_option == 0:
+        location_list=None
+    elif args.location_option == 1:
+        location_list=['Hoge Veluwe']
+    elif args.location_option == 2:
+        location_list=['Oosterhout']
+
+    print('--------\nUsing location list:', location_list)
+    print('Using species:', species_sel, '\n--------')
 
     timestamp = datetime.now().strftime("%Y-%m-%d-%H%M")
     for split in cv_splits:
@@ -77,6 +89,8 @@ def main():
             zoned_chilling=ZONED_CHILLING,
             mcmc_cores=args.n_cores,
             split_seasons_traintest=split,
+            species_sel=species_sel,
+            location_list=location_list
         )
 
         # Get the parent directory of the current script
@@ -94,7 +108,11 @@ def main():
             df_use = df_test 
             # Get posterior samples
             posterior = az.extract(posterior_samples)
-            hparam_info_str = f'{args.tune_samples} tune, {args.draw_samples} draw, {args.chains} chains, {args.mode_model}, split {split}'
+            if location_list is None:
+                descr_location = 'All locations'
+            else:
+                descr_location = ' + '.join(location_list)
+            hparam_info_str = f'{descr_location}, {species_sel}\n{args.tune_samples} tune, {args.draw_samples} draw, {args.chains} chains, {args.mode_model}, split {split}'
             try:
                 if INFER_CHILLING:
                     vars_temp = ['t_base_force', 't_base_chill', 'threshold_cum_chill']

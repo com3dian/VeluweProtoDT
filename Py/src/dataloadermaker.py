@@ -2,6 +2,7 @@ import os
 import pandas as pd
 import numpy as np
 from datetime import datetime
+from collections import Counter
 
 class DataLoaderMaker:
     def __init__(self):
@@ -52,11 +53,22 @@ class DataLoaderMaker:
         df = df.dropna()
         df = df.rename(columns={
             'organismID': 'TreeID',
-            'scientificName': 'species'
+            'scientificName': 'species',
         })
         df = df.reset_index(drop=True)
         self.dataframes['interpolated'] = df  # use the same name as in the original code
   
+    def tree_location_info(self, verbose=1):
+        assert hasattr(self, 'dataframes'), "Dataframes not loaded. Call load() first."
+
+        df = self.dataframes['interpolated']
+        tree_and_locations = df.drop_duplicates(subset=['TreeID', 'verbatimLocality'])[['TreeID', 'verbatimLocality', 'species']]
+        if verbose > 0:
+            print(f'Number of trees per location per species:')
+            for sp in tree_and_locations['species'].unique():
+                print(f'{sp}: {Counter(tree_and_locations[tree_and_locations["species"] == sp]["verbatimLocality"].values)}')
+        return tree_and_locations
+
     def deprecated_fromR_makeBudBurstDataset(self):
         
         assert False, 'Implemention is incomplete -> missing creationg of match-criterion dataframe and merger with interpolated dataframe'
