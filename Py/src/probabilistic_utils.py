@@ -29,8 +29,6 @@ def prep_data_for_regression(budburst_df=None, temp_df=None,
         print('No data provided -- using default data')
         VeluweTreeData = DataLoaderMaker()
         VeluweTreeData.load()
-        VeluweTreeData.makeBudBurstDataset()
-        VeluweTreeData.makeSpatioTemporalDataset()
 
         # Get the budburst and temperature dataframe
         temp_df = VeluweTreeData.get("temp_climwin_input")

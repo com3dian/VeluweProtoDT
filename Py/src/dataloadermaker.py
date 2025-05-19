@@ -38,6 +38,9 @@ class DataLoaderMaker:
         self.dataframes = dataframes
         self.datasets = {}
 
+        self.makeBudBurstDataset()
+        self.makeSpatioTemporalDataset()
+
     def get(self, varName):
         return self.dataframes[varName]
     
@@ -45,6 +48,16 @@ class DataLoaderMaker:
         return self.datasets[varName]
     
     def makeBudBurstDataset(self):
+        df = self.get("annual_budburst_per_tree")
+        df = df.dropna()
+        df = df.rename(columns={
+            'organismID': 'TreeID',
+            'scientificName': 'species'
+        })
+        df = df.reset_index(drop=True)
+        self.dataframes['interpolated'] = df  # use the same name as in the original code
+  
+    def deprecated_fromR_makeBudBurstDataset(self):
         
         assert False, 'Implemention is incomplete -> missing creationg of match-criterion dataframe and merger with interpolated dataframe'
         eventDF = self.get("event")
@@ -210,10 +223,6 @@ class DataLoaderMaker:
             'shape': temp_data.shape,
             'period': 'Dec 1 to May 31'
         }
-
-
-    def prepareDataset(self):
-        self.makeSpatioTemporalDataset()
         
     def prepareAndSplitTrainingTestDataset(self):
         pass
