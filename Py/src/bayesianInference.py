@@ -73,7 +73,10 @@ def main():
         location_list=['Hoge Veluwe']
     elif args.location_option == 2:
         location_list=['Oosterhout']
-
+    if location_list is None:
+        descr_location = 'All locations'
+    else:
+        descr_location = ' + '.join(location_list)
     print('--------\nUsing location list:', location_list)
     print('Using species:', species_sel, '\n--------')
 
@@ -98,7 +101,8 @@ def main():
         parent_dir = os.path.dirname(os.path.dirname(current_dir))
         save_dir_base = os.path.join(parent_dir, 'fg')
         os.makedirs(save_dir, exist_ok=True)
-        save_dir = os.path.join(save_dir_base, timestamp)
+        folder_name = f'{timestamp}_{args.mode_model.replace('_', '-')}_{species_sel.rstrip('.').replace(' ', '-')}_{descr_location.replace(" ", "-")}'.lower()
+        save_dir = os.path.join(save_dir_base, folder_name)
         os.makedirs(save_dir, exist_ok=True)
 
         if args.save_posterior:
@@ -110,10 +114,6 @@ def main():
             df_use = df_test 
             # Get posterior samples
             posterior = az.extract(posterior_samples)
-            if location_list is None:
-                descr_location = 'All locations'
-            else:
-                descr_location = ' + '.join(location_list)
             hparam_info_str = f'{descr_location}, {species_sel}\n{args.tune_samples} tune, {args.draw_samples} draw, {args.chains} chains, {args.mode_model}, split {split}'
             try:
                 if INFER_CHILLING:
