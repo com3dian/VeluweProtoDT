@@ -5,7 +5,7 @@ from datetime import datetime
 import pymc as pm 
 import pytensor
 import pytensor.tensor as pt
-
+from collections import Counter
 from dataloadermaker import DataLoaderMaker
 
 def prep_data_for_regression(budburst_df=None, temp_df=None, 
@@ -94,7 +94,8 @@ def bayesian_inference(
         infer_chilling=False,
         zoned_chilling=False,
         species_sel='Quercus robur L.',
-        location_list=None
+        location_list=None,
+        equal_number_obs_per_season=True
         ):
     df_regression = prep_data_for_regression(species_sel=species_sel, location_list=location_list)
     df_regression['doy'] = df_regression['date'].dt.day_of_year
@@ -108,6 +109,14 @@ def bayesian_inference(
     test_seasons = seasons[split_seasons_traintest * 6:(split_seasons_traintest + 1) * 6]
     assert len(train_seasons) == 30, f"Expected 30 training seasons, got {len(train_seasons)}"
     print(f"Training seasons: {train_seasons}, test seasons: {test_seasons}")
+
+    if equal_number_obs_per_season:
+        min_max_doy = min(list(Counter(df_regression['season']).values()))
+        assert min_max_doy >= 145, f"Expected at least 145 observations per season, got {min_max_doy}."
+        ## filter out days greater than min_max_doy
+        df_regression = df_regression[df_regression['doy'] <= min_max_doy]
+        assert len(df_regression) > 0, "No data left after filtering for DOY and seasons."
+        assert len(df_regression) == len(seasons) * min_max_doy, "Data length does not match expected number of seasons and DOY."
 
     df_train = df_regression[df_regression["season"].isin(train_seasons)]
     df_test = df_regression[df_regression["season"].isin(test_seasons)]
