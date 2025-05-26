@@ -33,7 +33,7 @@ def main():
                         help='Number of MCMC tune samples')
     parser.add_argument('--chains', type=int, default=8,
                         help='Number of MCMC chains')
-    parser.add_argument('--save_posterior', type=bool, default=False,
+    parser.add_argument('--save_posterior', type=bool, default=True,
                         help='Save posterior samples')
     parser.add_argument('--plot_posterior_fit', type=bool, default=True,
                         help='Plot posterior fit')
