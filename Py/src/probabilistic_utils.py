@@ -114,8 +114,11 @@ def bayesian_inference(
 
     with pm.Model() as model:
         ## Extract data
-        bb_cdf_obs = df_train['bb_cdf'].values
-        temperature = df_train['temperature'].values
+        temperature = pm.Data("temperature", df_train['temperature'].values, 
+                              mutable=True, dims='obs_id')  # Use MutableData for temperature to allow for dynamic updates
+        if not infer_chilling:
+           doy = pm.Data('doy', df_train['doy'].values, mutable=True, dims='obs_id')  
+        bb_cdf_obs = pm.Data("bb_cdf_obs", df_train['bb_cdf'].values, mutable=True, dims='obs_id')
 
         ## Define priors
         t_base_force = pm.Normal("t_base_force", mu=5, sigma=2)  # Prior for base temperature
@@ -133,7 +136,7 @@ def bayesian_inference(
         for s in df_train['season'].unique():
             inds_s = df_train['season'] == s
             inds_s = inds_s.values
-            doy_s = df_train['doy'][inds_s].values
+            inds_s = pm.math.where(inds_s)[0]  # Convert boolean mask to indices
             
             gdd_s = t_above_base[inds_s]
             if infer_chilling:
@@ -143,6 +146,7 @@ def bayesian_inference(
                 cum_chill_days = pt.cumsum(cum_chill_days)
                 gdd_s = pt.where(cum_chill_days >= threshold_cum_chill, gdd_s, 0)
             else:
+                doy_s = doy[inds_s]
                 gdd_s = pt.where(doy_s >= start_doy, gdd_s, 0)
             gdd_s = pt.cumsum(gdd_s)
             gdd = pt.set_subtensor(gdd[inds_s], gdd_s)  # Alternative if gdd is also a tensor
@@ -154,10 +158,13 @@ def bayesian_inference(
         
         ## Likelihood: Normal distribution with uncertainty
         sigma = pm.HalfNormal("sigma", sigma=0.1)
-        bb_cdf_likelihood = pm.Normal("bb_cdf", mu=mu, sigma=sigma, observed=bb_cdf_obs)
+        bb_cdf_likelihood = pm.Normal("bb_cdf", mu=mu, sigma=sigma, 
+                                      shape=temperature.shape, observed=bb_cdf_obs, dims='obs_id')
 
         # Sample posterior
         trace = pm.sample(draws=mcmc_draw_samples, tune=mcmc_tune_samples, 
-                          chains=mcmc_chains, cores=mcmc_cores, return_inferencedata=True)
+                          chains=mcmc_chains, cores=mcmc_cores, 
+                          idata_kwargs={"log_likelihood": True},
+                          return_inferencedata=True)
         
     return trace, df_train, df_test
