@@ -108,7 +108,7 @@ def main():
         if args.save_posterior:
             save_dir_post = os.path.join(parent_dir, 'posterior_samples')
             os.makedirs(save_dir_post, exist_ok=True)
-            az.to_netcdf(posterior_samples, os.path.join(save_dir_post, 'posterior_samples.nc'))
+            az.to_netcdf(posterior_samples, os.path.join(save_dir_post, 'posterior_samples_{timestamp}_split-{split}.nc'))
 
         if args.plot_posterior_fit:
             df_use = df_test 
