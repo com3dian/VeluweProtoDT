@@ -55,6 +55,7 @@ def prep_data_for_regression(budburst_df=None, temp_df=None,
         arr_doy = bb_sel.bud_burst_DOY.values
         arr_doy = np.sort(arr_doy)
         bb_cdf = np.arange(len(arr_doy)) / float(len(arr_doy) - 1) ## there can be duplicate doys, so we need the maximum the budburst fraction per doy
+        arr_doy = np.round(arr_doy).astype(int)  # Round DOY to nearest integer (For proper GGD calculation and to avoid duplicate DOYs later)
         bb_cdf = pd.DataFrame({'doy': arr_doy, 'bb_cdf': bb_cdf}).groupby('doy').max().reset_index()
         bb_cdf['date'] = pd.to_datetime(bb_cdf['doy'], format='%j').dt.tz_localize('UTC') + pd.offsets.DateOffset(years=y - 1900)  ## 1900 is default start year for pd dt
         temp_sel = temp_df[((temp_df['date'].dt.year == y) & 
