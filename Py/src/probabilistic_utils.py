@@ -121,13 +121,30 @@ def bayesian_inference(
     df_train = df_regression[df_regression["season"].isin(train_seasons)]
     df_test = df_regression[df_regression["season"].isin(test_seasons)]
 
+    ## convert format:
+    matrix_temp_train = pd.pivot_table(df_train, index='doy', columns='season', values='temperature')
+    matrix_bbcdf_train = pd.pivot_table(df_train, index='doy', columns='season', values='bb_cdf')
+
+    assert matrix_temp_train.isna().sum().sum() == 0, "Temperature matrix contains NaN values."
+    assert matrix_bbcdf_train.isna().sum().sum() == 0, "BB CDF matrix contains NaN values."
+    assert matrix_temp_train.shape == (min_max_doy, len(train_seasons)), f'Temperature matrix shape mismatch.: {matrix_temp_train.shape}, expected {(min_max_doy, len(seasons))}'
+    assert matrix_bbcdf_train.shape == (min_max_doy, len(train_seasons)), "BB CDF matrix shape mismatch."
+
+    matrix_temp_train, matrix_bbcdf_train = matrix_temp_train.values, matrix_bbcdf_train.values
+    assert matrix_temp_train.shape == matrix_bbcdf_train.shape, "Temperature and BB CDF matrices must have the same shape."
+
+    matrix_temp_test = pd.pivot_table(df_test, index='doy', columns='season', values='temperature').values 
+    matrix_bbcdf_test = pd.pivot_table(df_test, index='doy', columns='season', values='bb_cdf').values
+    assert matrix_temp_test.shape == matrix_bbcdf_test.shape, "Test matrices must have the same shape."
+
     with pm.Model() as model:
         ## Extract data
-        temperature = pm.Data("temperature", df_train['temperature'].values, 
-                              mutable=True, dims='obs_id')  # Use MutableData for temperature to allow for dynamic updates
+        temperature = pm.Data("temperature", matrix_temp_train, 
+                              mutable=True, dims=('doy', 'season'))  # Use MutableData for temperature to allow for dynamic updates
         if not infer_chilling:
-           doy = pm.Data('doy', df_train['doy'].values, mutable=True, dims='obs_id')  
-        bb_cdf_obs = pm.Data("bb_cdf_obs", df_train['bb_cdf'].values, mutable=True, dims='obs_id')
+            assert False, 'not implemented -- create matrix with DOY '
+        bb_cdf_obs = pm.Data("bb_cdf_obs", matrix_bbcdf_train, mutable=True, 
+                             dims=('doy', 'season'))
 
         ## Define priors
         t_base_force = pm.Normal("t_base_force", mu=5, sigma=2)  # Prior for base temperature
@@ -142,23 +159,33 @@ def bayesian_inference(
         ## Calculate variables
         t_above_base = pm.math.maximum(0, temperature - t_base_force)  # GDD calculation
         gdd = pm.math.zeros_like(t_above_base)  # Initialize GDD array
-        for s in df_train['season'].unique():
-            inds_s = df_train['season'] == s
-            inds_s = inds_s.values
-            inds_s = pm.math.where(inds_s)[0]  # Convert boolean mask to indices
+        if infer_chilling:
+            cum_chill_days = pt.where(temperature < t_base_chill, 1, 0)
+            if zoned_chilling:
+                cum_chill_days = pt.where(temperature < t_bottom_chill, 0, cum_chill_days)
+            cum_chill_days = pt.cumsum(cum_chill_days, axis=0)  # Cumulative chilling days
+            gdd = pt.where(cum_chill_days >= threshold_cum_chill, gdd, 0)
+        else:
+            assert False, 'not implemented -- create matrix with DOY'
+        gdd = pt.cumsum(gdd, axis=0)  # Cumulative GDD
+
+        # for s in df_train['season'].unique():
+        #     inds_s = df_train['season'] == s
+        #     inds_s = inds_s.values
+        #     inds_s = pm.math.where(inds_s)[0]  # Convert boolean mask to indices
             
-            gdd_s = t_above_base[inds_s]
-            if infer_chilling:
-                cum_chill_days = pt.where(temperature[inds_s] < t_base_chill, 1, 0)
-                if zoned_chilling:
-                    cum_chill_days = pt.where(temperature[inds_s] < t_bottom_chill, 0, cum_chill_days)
-                cum_chill_days = pt.cumsum(cum_chill_days)
-                gdd_s = pt.where(cum_chill_days >= threshold_cum_chill, gdd_s, 0)
-            else:
-                doy_s = doy[inds_s]
-                gdd_s = pt.where(doy_s >= start_doy, gdd_s, 0)
-            gdd_s = pt.cumsum(gdd_s)
-            gdd = pt.set_subtensor(gdd[inds_s], gdd_s)  # Alternative if gdd is also a tensor
+        #     gdd_s = t_above_base[inds_s]
+        #     if infer_chilling:
+        #         cum_chill_days = pt.where(temperature[inds_s] < t_base_chill, 1, 0)
+        #         if zoned_chilling:
+        #             cum_chill_days = pt.where(temperature[inds_s] < t_bottom_chill, 0, cum_chill_days)
+        #         cum_chill_days = pt.cumsum(cum_chill_days)
+        #         gdd_s = pt.where(cum_chill_days >= threshold_cum_chill, gdd_s, 0)
+        #     else:
+        #         doy_s = doy[inds_s]
+        #         gdd_s = pt.where(doy_s >= start_doy, gdd_s, 0)
+        #     gdd_s = pt.cumsum(gdd_s)
+        #     gdd = pt.set_subtensor(gdd[inds_s], gdd_s)  # Alternative if gdd is also a tensor
 
         ## Logistic function: maps GDD to cumulative fraction
         alpha = pm.Normal("alpha", mu=0, sigma=10)  # Intercept
@@ -168,7 +195,7 @@ def bayesian_inference(
         ## Likelihood: Normal distribution with uncertainty
         sigma = pm.HalfNormal("sigma", sigma=0.1)
         bb_cdf_likelihood = pm.Normal("bb_cdf", mu=mu, sigma=sigma, 
-                                      shape=temperature.shape, observed=bb_cdf_obs, dims='obs_id')
+                                      shape=temperature.shape, observed=bb_cdf_obs, dims=('doy', 'season'))
 
         # Sample posterior
         trace = pm.sample(draws=mcmc_draw_samples, tune=mcmc_tune_samples, 
@@ -176,4 +203,4 @@ def bayesian_inference(
                           idata_kwargs={"log_likelihood": True},
                           return_inferencedata=True)
         
-    return trace, df_train, df_test
+    return trace, df_train, df_test, model
