@@ -84,7 +84,7 @@ def main():
     for split in cv_splits:
         logger.info(f"Running split {split} with mode {args.mode_model}")
         print(f"Running split {split} with mode {args.mode_model}")
-        posterior_samples, df_train, df_test = pu.bayesian_inference(
+        posterior_samples, df_train, df_test, model = pu.bayesian_inference(
             mcmc_draw_samples=args.draw_samples,
             mcmc_tune_samples=args.tune_samples,
             mcmc_chains=args.chains,

@@ -176,4 +176,4 @@ def bayesian_inference(
                           idata_kwargs={"log_likelihood": True},
                           return_inferencedata=True)
         
-    return trace, df_train, df_test
+    return trace, df_train, df_test, model
