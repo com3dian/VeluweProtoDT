@@ -100,7 +100,7 @@ def main():
         current_dir = os.path.dirname(os.path.abspath(__file__))
         parent_dir = os.path.dirname(os.path.dirname(current_dir))
         save_dir_base = os.path.join(parent_dir, 'fg')
-        os.makedirs(save_dir, exist_ok=True)
+        os.makedirs(save_dir_base, exist_ok=True)
         folder_name = f'{timestamp}_{args.mode_model.replace('_', '-')}_{species_sel.rstrip('.').replace(' ', '-')}_{descr_location.replace(" ", "-")}'.lower()
         save_dir = os.path.join(save_dir_base, folder_name)
         os.makedirs(save_dir, exist_ok=True)
@@ -108,7 +108,9 @@ def main():
         if args.save_posterior:
             save_dir_post = os.path.join(parent_dir, 'posterior_samples')
             os.makedirs(save_dir_post, exist_ok=True)
-            az.to_netcdf(posterior_samples, os.path.join(save_dir_post, 'posterior_samples_{timestamp}_split-{split}.nc'))
+            save_dir_post = os.path.join(save_dir_post, folder_name)
+            os.makedirs(save_dir_post, exist_ok=True)
+            az.to_netcdf(posterior_samples, os.path.join(save_dir_post, f'posterior_samples_{timestamp}_split-{split}.nc'))
 
         if args.plot_posterior_fit:
             df_use = df_test 
