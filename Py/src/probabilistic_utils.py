@@ -85,19 +85,7 @@ def prep_data_for_regression(budburst_df=None, temp_df=None,
     regression_df = pd.concat(dict_data_per_year.values(), ignore_index=True)
     return regression_df
 
-def bayesian_inference(
-        split_seasons_traintest=None,
-        mcmc_draw_samples=100,
-        mcmc_tune_samples=200,
-        mcmc_chains=32,
-        mcmc_cores=8,
-        infer_chilling=False,
-        zoned_chilling=False,
-        species_sel='Quercus robur L.',
-        location_list=None,
-        equal_number_obs_per_season=True
-        ):
-    df_regression = prep_data_for_regression(species_sel=species_sel, location_list=location_list)
+def split_data_by_season(df_regression, split_seasons_traintest=None, equal_number_obs_per_season=True):
     df_regression['doy'] = df_regression['date'].dt.day_of_year
     df_regression = df_regression[df_regression['date'].dt.month < 7]  # delete Dec effectively, just to make DOY prior easier to deal with 
 
@@ -120,6 +108,24 @@ def bayesian_inference(
 
     df_train = df_regression[df_regression["season"].isin(train_seasons)]
     df_test = df_regression[df_regression["season"].isin(test_seasons)]
+    return df_train, df_test
+
+def bayesian_inference(
+        split_seasons_traintest=None,
+        mcmc_draw_samples=100,
+        mcmc_tune_samples=200,
+        mcmc_chains=32,
+        mcmc_cores=8,
+        infer_chilling=False,
+        zoned_chilling=False,
+        species_sel='Quercus robur L.',
+        location_list=None,
+        equal_number_obs_per_season=True
+        ):
+    df_regression = prep_data_for_regression(species_sel=species_sel, location_list=location_list)
+    df_train, df_test = split_data_by_season(df_regression=df_regression,
+                                            split_seasons_traintest=split_seasons_traintest, 
+                                            equal_number_obs_per_season=equal_number_obs_per_season)
 
     with pm.Model() as model:
         ## Extract data
