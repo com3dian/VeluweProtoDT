@@ -14,3 +14,4 @@ __pycache__
 Py/src/__pycache__/*.pyc
 .pyc
 .DS_Store
+Py/src/__pycache__/*
