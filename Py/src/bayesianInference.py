@@ -43,6 +43,7 @@ def main():
     parser.add_argument('--cv', action='store_true')
     parser.add_argument('--species', type=str, default='Quercus robur L.')
     parser.add_argument('--location_option', type=int, default=0)
+    parser.add_argument('--scale_sigma_by_mu', type=bool, default=False)
     
     args = parser.parse_args()
 
@@ -93,7 +94,8 @@ def main():
             mcmc_cores=args.n_cores,
             split_seasons_traintest=split,
             species_sel=species_sel,
-            location_list=location_list
+            location_list=location_list,
+            scale_sigma_by_mu=args.scale_sigma_by_mu
         )
 
         # Get the parent directory of the current script
@@ -102,8 +104,10 @@ def main():
         save_dir_base = os.path.join(parent_dir, 'fg')
         os.makedirs(save_dir_base, exist_ok=True)
         folder_name = f'{timestamp}_{args.mode_model.replace('_', '-')}_{species_sel.rstrip('.').replace(' ', '-')}_{descr_location.replace(" ", "-")}'.lower()
-        save_dir = os.path.join(save_dir_base, folder_name)
-        os.makedirs(save_dir, exist_ok=True)
+        save_dir_fig = os.path.join(save_dir_base, folder_name)
+        os.makedirs(save_dir_fig, exist_ok=True)
+
+        str_all_args = '\n'.join([f'{k}: {v}' for k, v in vars(args).items()])
 
         if args.save_posterior:
             save_dir_post = os.path.join(parent_dir, 'posterior_samples')
@@ -111,8 +115,13 @@ def main():
             save_dir_post = os.path.join(save_dir_post, folder_name)
             os.makedirs(save_dir_post, exist_ok=True)
             az.to_netcdf(posterior_samples, os.path.join(save_dir_post, f'posterior_samples_{timestamp}_split-{split}.nc'))
+            with open(os.path.join(save_dir_post, f'args_{timestamp}_split-{split}.txt'), 'w') as f:
+                f.write(str_all_args)
 
         if args.plot_posterior_fit:
+            with open(os.path.join(save_dir_fig, f'args_{timestamp}_split-{split}.txt'), 'w') as f:
+                f.write(str_all_args)
+
             df_use = df_test 
             # Get posterior samples
             posterior = az.extract(posterior_samples)
@@ -129,13 +138,13 @@ def main():
 
                 az.plot_pair(posterior_samples, var_names=vars_temp, kind='kde', marginals=True)
                 plt.suptitle(hparam_info_str, weight='bold', fontsize=10)
-                plt.savefig(os.path.join(save_dir, f'joint_posterior_temperature_{timestamp}_split-{split}.png'),
+                plt.savefig(os.path.join(save_dir_fig, f'joint_posterior_temperature_{timestamp}_split-{split}.png'),
                             dpi=300, bbox_inches='tight')
                 plt.close()  # Close the figure to free memory
 
                 az.plot_pair(posterior_samples, var_names=vars_modelfit, kind='kde', marginals=True)
                 plt.suptitle(hparam_info_str, weight='bold', fontsize=10)
-                plt.savefig(os.path.join(save_dir, f'joint_posterior_modelfit_{timestamp}_split-{split}.png'),
+                plt.savefig(os.path.join(save_dir_fig, f'joint_posterior_modelfit_{timestamp}_split-{split}.png'),
                             dpi=300, bbox_inches='tight')
                 plt.close()  # Close the figure to free memory
                 
@@ -224,7 +233,7 @@ def main():
                 curr_ax.set_ylim(ymin, ymax)
                 
             fig.suptitle('Evaluation of the model on test data\n' + hparam_info_str, weight='bold', fontsize=10)
-            plt.savefig(os.path.join(save_dir, f'posterior_prediction_bbcdf_{timestamp}_split-{split}.png'),
+            plt.savefig(os.path.join(save_dir_fig, f'posterior_prediction_bbcdf_{timestamp}_split-{split}.png'),
                         dpi=300, bbox_inches='tight')
             plt.close()  # Close the figure to free memory
 

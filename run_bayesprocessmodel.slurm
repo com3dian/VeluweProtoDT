@@ -6,7 +6,7 @@
 #SBATCH --gres=gpu:0               # Request 1 GPU
 #SBATCH --cpus-per-task=32          # CPU cores
 #SBATCH --mem=16G                  # Memory
-#SBATCH --time=08:00:00            # Runtime
+#SBATCH --time=04:00:00            # Runtime
 
 # Load Python module (adjust version to match your env setup)
 module load 2023
@@ -28,4 +28,5 @@ python Py/src/bayesianInference.py \
     --n_cores=32 \
     --mode_model="force_chill-zoned" \
     --cv \
-    --location_option=0
+    --location_option=1 \ 
+    --scale_sigma_by_mu=True 

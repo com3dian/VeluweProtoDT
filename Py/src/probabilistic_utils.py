@@ -120,7 +120,8 @@ def bayesian_inference(
         zoned_chilling=False,
         species_sel='Quercus robur L.',
         location_list=None,
-        equal_number_obs_per_season=True
+        equal_number_obs_per_season=True,
+        scale_sigma_by_mu=False
         ):
     df_regression = prep_data_for_regression(species_sel=species_sel, location_list=location_list)
     df_train, df_test = split_data_by_season(df_regression=df_regression,
@@ -173,7 +174,12 @@ def bayesian_inference(
         
         ## Likelihood: Normal distribution with uncertainty
         sigma = pm.HalfNormal("sigma", sigma=0.1)
-        bb_cdf_likelihood = pm.Normal("bb_cdf", mu=mu, sigma=sigma, 
+        if scale_sigma_by_mu:
+            ## set sigma = abs(mu - 0.5) * sigma 
+            std = pm.Deterministic("sigma_scaled", pt.abs(mu - 0.5) * sigma)
+        else:
+            std = sigma
+        bb_cdf_likelihood = pm.Normal("bb_cdf", mu=mu, sigma=std, 
                                       shape=temperature.shape, observed=bb_cdf_obs, dims='obs_id')
 
         # Sample posterior
