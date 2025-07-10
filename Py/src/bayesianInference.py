@@ -122,10 +122,10 @@ def main():
                     vars_temp = ['t_base_force', 't_base_chill', 'threshold_cum_chill']
                     if ZONED_CHILLING:
                         vars_temp += ['t_bottom_chill']
-                    vars_modelfit = ['alpha', 'beta', 'threshold_cum_chill']
+                    vars_modelfit = ['alpha', 'beta', 'sigma']
                 else:
                     vars_temp = ['start_date', 't_base_force']
-                    vars_modelfit = ['alpha', 'beta']
+                    vars_modelfit = ['alpha', 'beta', 'sigma']
 
                 az.plot_pair(posterior_samples, var_names=vars_temp, kind='kde', marginals=True)
                 plt.suptitle(hparam_info_str, weight='bold', fontsize=10)
