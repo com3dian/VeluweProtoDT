@@ -43,7 +43,7 @@ def main():
     parser.add_argument('--cv', action='store_true')
     parser.add_argument('--species', type=str, default='Quercus robur L.')
     parser.add_argument('--location_option', type=int, default=0)
-    parser.add_argument('--scale_sigma_by_mu', type=bool, default=False)
+    parser.add_argument('--scale_sigma_by_mu', type=bool, default=True)
     
     args = parser.parse_args()
 

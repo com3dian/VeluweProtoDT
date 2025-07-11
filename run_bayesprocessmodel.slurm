@@ -28,5 +28,4 @@ python Py/src/bayesianInference.py \
     --n_cores=32 \
     --mode_model="force_chill-zoned" \
     --cv \
-    --location_option=1 \ 
-    --scale_sigma_by_mu=True 
+    --location_option=1 
