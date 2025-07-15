@@ -134,28 +134,26 @@ def prep_moth_data_for_regression(moth_df, temp_df, location_list=['HV'], verbos
     regression_df = pd.concat(dict_data_per_year.values(), ignore_index=True)
     return regression_df
 
-
 def split_data_by_season(df_regression, split_seasons_traintest: int, 
                          equal_number_obs_per_season=True, split_method='sequential', n_splits=6):
     assert split_method in ['sequential', 'mean_temperature']
-    assert n_splits == 6, "Currently only supports 6 splits for seasons (6 years of data)."
     df_regression['doy'] = df_regression['date'].dt.day_of_year
     df_regression = df_regression[df_regression['date'].dt.month < 7]  # delete Dec effectively, just to make DOY prior easier to deal with 
-
     seasons = sorted(df_regression["season"].unique())
+    n_seasons_per_split = len(seasons) // n_splits
     assert len(seasons) == 36, f"Expected 36 seasons, got {len(seasons)}"
+    assert int(n_seasons_per_split * n_splits) == len(seasons), f"Expected {len(seasons)} seasons, got {int(n_seasons_per_split * n_splits)}"
     assert type(split_seasons_traintest) == int and split_seasons_traintest in np.arange(n_splits), f"split_seasons_train must be in {np.arange(n_splits)}, got {split_seasons_traintest}"
     if split_method == 'mean_temperature':
         df_mean_temp = df_regression[df_regression['date'].dt.month <= 4].groupby('season')['temperature'].mean().sort_values(ascending=False)  # sorted from warmest to coldest
-        seasons_sorted = df_mean_temp.index.tolist()
-        train_seasons = seasons_sorted[:split_seasons_traintest * n_splits] + seasons_sorted[(split_seasons_traintest + 1) * n_splits:]
-        test_seasons = seasons_sorted[split_seasons_traintest * n_splits:(split_seasons_traintest + 1) * n_splits]
+        seasons_use = df_mean_temp.index.tolist() # sorted from warmest to coldest
     elif split_method == 'sequential':
         ## Create 6 blocks of 6 consecutive seasons, use split_seasons_train to select the test block 
-        train_seasons = seasons[:split_seasons_traintest * n_splits] + seasons[(split_seasons_traintest + 1) * n_splits:]
-        test_seasons = seasons[split_seasons_traintest * n_splits:(split_seasons_traintest + 1) * n_splits]
-    assert len(test_seasons) == int(len(seasons) // n_splits)
-    assert len(train_seasons) == len(seasons) - len(test_seasons), "Train and test seasons do not match expected lengths."
+        seasons_use = seasons
+    train_seasons = seasons_use[:split_seasons_traintest * n_seasons_per_split] + seasons_use[(split_seasons_traintest + 1) * n_seasons_per_split:]
+    test_seasons = seasons_use[split_seasons_traintest * n_seasons_per_split:(split_seasons_traintest + 1) * n_seasons_per_split]
+    assert len(test_seasons) == int(len(seasons_use) // n_splits), f'Expected {len(seasons_use) // n_splits} test seasons, got {len(test_seasons)}'
+    assert len(train_seasons) == len(seasons_use) - len(test_seasons), f'Expected {len(seasons_use) - len(test_seasons)} train seasons, got {len(train_seasons)}'
     print(f"Training seasons: {train_seasons}, test seasons: {test_seasons}")
 
     if equal_number_obs_per_season:
@@ -164,7 +162,7 @@ def split_data_by_season(df_regression, split_seasons_traintest: int,
         ## filter out days greater than min_max_doy
         df_regression = df_regression[df_regression['doy'] <= min_max_doy]
         assert len(df_regression) > 0, "No data left after filtering for DOY and seasons."
-        assert len(df_regression) == len(seasons) * min_max_doy, "Data length does not match expected number of seasons and DOY."
+        assert len(df_regression) == len(seasons_use) * min_max_doy, "Data length does not match expected number of seasons and DOY."
 
     df_train = df_regression[df_regression["season"].isin(train_seasons)]
     df_test = df_regression[df_regression["season"].isin(test_seasons)]
@@ -182,13 +180,14 @@ def bayesian_inference(
         location_list=None,
         equal_number_obs_per_season=True,
         scale_sigma_by_mu=False,
-        split_method='sequential'
+        split_method='sequential',
+        n_splits=6
         ):
     df_regression = prep_budburst_data_for_regression(species_sel=species_sel, location_list=location_list)
     df_train, df_test = split_data_by_season(df_regression=df_regression,
                                             split_seasons_traintest=split_seasons_traintest, 
                                             equal_number_obs_per_season=equal_number_obs_per_season,
-                                            split_method=split_method)
+                                            split_method=split_method, n_splits=n_splits)
 
     with pm.Model() as model:
         ## Extract data
