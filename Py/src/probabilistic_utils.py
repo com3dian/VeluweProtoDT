@@ -135,7 +135,7 @@ def prep_moth_data_for_regression(moth_df, temp_df, location_list=['HV'], verbos
     return regression_df
 
 
-def split_data_by_season(df_regression, split_seasons_traintest=None, 
+def split_data_by_season(df_regression, split_seasons_traintest: int, 
                          equal_number_obs_per_season=True, split_method='sequential', n_splits=6):
     assert split_method in ['sequential', 'mean_temperature']
     assert n_splits == 6, "Currently only supports 6 splits for seasons (6 years of data)."
@@ -144,7 +144,7 @@ def split_data_by_season(df_regression, split_seasons_traintest=None,
 
     seasons = sorted(df_regression["season"].unique())
     assert len(seasons) == 36, f"Expected 36 seasons, got {len(seasons)}"
-    assert split_seasons_traintest in np.arange(n_splits), f"split_seasons_train must be in {np.arange(n_splits)}, got {split_seasons_traintest}"
+    assert type(split_seasons_traintest) == int and split_seasons_traintest in np.arange(n_splits), f"split_seasons_train must be in {np.arange(n_splits)}, got {split_seasons_traintest}"
     if split_method == 'mean_temperature':
         df_mean_temp = df_regression[df_regression['date'].dt.month <= 4].groupby('season')['temperature'].mean().sort_values(ascending=False)  # sorted from warmest to coldest
         seasons_sorted = df_mean_temp.index.tolist()
@@ -181,12 +181,14 @@ def bayesian_inference(
         species_sel='Quercus robur L.',
         location_list=None,
         equal_number_obs_per_season=True,
-        scale_sigma_by_mu=False
+        scale_sigma_by_mu=False,
+        split_method='sequential'
         ):
     df_regression = prep_budburst_data_for_regression(species_sel=species_sel, location_list=location_list)
     df_train, df_test = split_data_by_season(df_regression=df_regression,
                                             split_seasons_traintest=split_seasons_traintest, 
-                                            equal_number_obs_per_season=equal_number_obs_per_season)
+                                            equal_number_obs_per_season=equal_number_obs_per_season,
+                                            split_method=split_method)
 
     with pm.Model() as model:
         ## Extract data

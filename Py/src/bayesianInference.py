@@ -44,6 +44,8 @@ def main():
     parser.add_argument('--species', type=str, default='Quercus robur L.')
     parser.add_argument('--location_option', type=int, default=0)
     parser.add_argument('--scale_sigma_by_mu', type=bool, default=False)
+    parser.add_argument('--split_method', type=str, default='sequential',
+                        help='Method to split seasons for training and testing. Options: "sequential", "mean_temperature"')
     
     args = parser.parse_args()
 
@@ -95,7 +97,8 @@ def main():
             split_seasons_traintest=split,
             species_sel=species_sel,
             location_list=location_list,
-            scale_sigma_by_mu=args.scale_sigma_by_mu
+            scale_sigma_by_mu=args.scale_sigma_by_mu,
+            split_method=args.split_method
         )
 
         # Get the parent directory of the current script
