@@ -176,8 +176,9 @@ def bayesian_inference(
         sigma = pm.HalfNormal("sigma", sigma=0.1)
         if scale_sigma_by_mu:
             ## sigma * (1 - 2 * np.abs(mu - 0.5)) + 1e-3
-            eps = 1e-3
-            std = pm.Deterministic("sigma_scaled", (1 - 2 * pt.abs(mu - 0.5)) * sigma + eps)  # Avoid division by zero
+            eps = 5e-2
+            # std = pm.Deterministic("sigma_scaled", pt.sqr(1 - 2 * pt.abs(mu - 0.5)) * sigma + eps)  # Avoid division by zero
+            std = pm.Deterministic("sigma_scaled",  (mu * (1 - mu)) ** 2 * sigma + eps)  # Avoid division by zero
         else:
             std = sigma
         bb_cdf_likelihood = pm.Normal("bb_cdf", mu=mu, sigma=std, 

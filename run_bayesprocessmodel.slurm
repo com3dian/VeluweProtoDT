@@ -17,7 +17,7 @@ source ~/venvs/bayesenv/bin/activate
 
 # Default values
 DRAW_SAMPLES=500
-TUNE_SAMPLES=1500
+TUNE_SAMPLES=2000
 CHAINS=32
 
 # Run your Python script
