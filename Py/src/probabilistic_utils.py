@@ -8,10 +8,10 @@ import pytensor.tensor as pt
 from collections import Counter
 from dataloadermaker import DataLoaderMaker
 
-def prep_data_for_regression(budburst_df=None, temp_df=None, 
+def prep_budburst_data_for_regression(budburst_df=None, temp_df=None, 
                             #  t_base_force=4, gdd_month_day_start=None, 
                              species_sel='Quercus robur L.',
-                             location_list=None):
+                             location_list=['Hoge Veluwe']):
     """
     Prepares the data for regression analysis by merging the budburst and temperature dataframes.
 
@@ -85,17 +85,77 @@ def prep_data_for_regression(budburst_df=None, temp_df=None,
     regression_df = pd.concat(dict_data_per_year.values(), ignore_index=True)
     return regression_df
 
-def split_data_by_season(df_regression, split_seasons_traintest=None, equal_number_obs_per_season=True):
+def prep_moth_data_for_regression(moth_df, temp_df, location_list=['HV'], verbose=1):
+    if temp_df is None:
+        assert False, 'implement'
+
+    moth_df = moth_df[moth_df['AreaShortName'].isin(location_list)]
+    years = sorted(moth_df.YearHatch.unique())
+    dict_data_per_year = {}
+    season_start_doy = 250
+
+    for y in years:
+        moth_sel = moth_df[moth_df['YearHatch'] == y]
+        if len(moth_sel) == 0:
+            if verbose > 0:
+                print(f'No data for year {y}')
+            continue 
+        arr_doy = moth_sel.DOY_hatch.values
+        arr_doy = np.sort(arr_doy)
+        moth_cdf = np.arange(len(arr_doy)) // float(len(arr_doy) - 1)
+        arr_doy = np.round(arr_doy).astype(int)
+        moth_cdf = pd.DataFrame({'doy': arr_doy, 'moth_cdf': moth_cdf}).groupby('doy').max().reset_index()
+        moth_cdf['date'] = pd.to_datetime(moth_cdf['doy'], format='%j').dt.tz_localize('UTC') + pd.offsets.DateOffset(years=y - 1900)  ## 1900 is default start year for pd dt
+        
+        temp_sel = temp_df[((temp_df['date'].dt.year == y) & 
+                            (temp_df['date'].dt.day_of_year < season_start_doy)) | 
+                            ((temp_df['date'].dt.year == y-1) & 
+                            (temp_df['date'].dt.day_of_year >= season_start_doy))].copy()
+
+        if len(temp_sel) == 0:
+            print(f"No temperature data for year {y}")
+            continue
+
+        temp_sel = temp_sel[['date', 'temperature']].groupby('date').mean().reset_index()
+        temp_sel = temp_sel.rename(columns={'date': 'date_temp'})
+        moth_cdf = moth_cdf.rename(columns={'date': 'date_moth'})
+        regression_df = pd.merge(moth_cdf, temp_sel, left_on='date_moth', right_on='date_temp', how='right')
+        del regression_df['date_moth']
+        del regression_df['doy']
+        regression_df = regression_df.rename(columns={'date_temp': 'date'})
+        regression_df['moth_cdf'] = regression_df['moth_cdf'].ffill().fillna(0)
+        regression_df['date'] = pd.to_datetime(regression_df['date'], format='%Y-%m-%d')
+
+        s = f'{y-1}-{y}'
+        regression_df['season'] = s
+
+        dict_data_per_year[s] = regression_df
+
+    regression_df = pd.concat(dict_data_per_year.values(), ignore_index=True)
+    return regression_df
+
+
+def split_data_by_season(df_regression, split_seasons_traintest=None, 
+                         equal_number_obs_per_season=True, split_method='sequential', n_splits=6):
+    assert split_method in ['sequential', 'mean_temperature']
+    assert n_splits == 6, "Currently only supports 6 splits for seasons (6 years of data)."
     df_regression['doy'] = df_regression['date'].dt.day_of_year
     df_regression = df_regression[df_regression['date'].dt.month < 7]  # delete Dec effectively, just to make DOY prior easier to deal with 
 
     seasons = sorted(df_regression["season"].unique())
     assert len(seasons) == 36, f"Expected 36 seasons, got {len(seasons)}"
-    assert split_seasons_traintest in [0, 1, 2, 3, 4, 5], f"split_seasons_train must be in [0, 1, 2, 3, 4, 5], got {split_seasons_traintest}"
-    ## Create 6 blocks of 6 consecutive seasons, use split_seasons_train to select the test block 
-    train_seasons = seasons[:split_seasons_traintest * 6] + seasons[(split_seasons_traintest + 1) * 6:]
-    test_seasons = seasons[split_seasons_traintest * 6:(split_seasons_traintest + 1) * 6]
-    assert len(train_seasons) == 30, f"Expected 30 training seasons, got {len(train_seasons)}"
+    assert split_seasons_traintest in np.arange(n_splits), f"split_seasons_train must be in {np.arange(n_splits)}, got {split_seasons_traintest}"
+    if split_method == 'mean_temperature':
+        df_mean_temp = df_regression[df_regression['date'].dt.month <= 4].groupby('season')['temperature'].mean().sort_values(ascending=False)  # sorted from warmest to coldest
+        seasons_sorted = df_mean_temp.index.tolist()
+        train_seasons = seasons_sorted[:split_seasons_traintest * n_splits] + seasons_sorted[(split_seasons_traintest + 1) * n_splits:]
+        test_seasons = seasons_sorted[split_seasons_traintest * n_splits:(split_seasons_traintest + 1) * n_splits]
+    elif split_method == 'sequential':
+        ## Create 6 blocks of 6 consecutive seasons, use split_seasons_train to select the test block 
+        train_seasons = seasons[:split_seasons_traintest * n_splits] + seasons[(split_seasons_traintest + 1) * n_splits:]
+        test_seasons = seasons[split_seasons_traintest * n_splits:(split_seasons_traintest + 1) * n_splits]
+    assert len(test_seasons) == int(len(seasons) // n_splits)
+    assert len(train_seasons) == len(seasons) - len(test_seasons), "Train and test seasons do not match expected lengths."
     print(f"Training seasons: {train_seasons}, test seasons: {test_seasons}")
 
     if equal_number_obs_per_season:
@@ -123,7 +183,7 @@ def bayesian_inference(
         equal_number_obs_per_season=True,
         scale_sigma_by_mu=False
         ):
-    df_regression = prep_data_for_regression(species_sel=species_sel, location_list=location_list)
+    df_regression = prep_budburst_data_for_regression(species_sel=species_sel, location_list=location_list)
     df_train, df_test = split_data_by_season(df_regression=df_regression,
                                             split_seasons_traintest=split_seasons_traintest, 
                                             equal_number_obs_per_season=equal_number_obs_per_season)
