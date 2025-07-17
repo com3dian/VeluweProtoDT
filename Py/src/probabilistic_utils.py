@@ -85,10 +85,25 @@ def prep_budburst_data_for_regression(budburst_df=None, temp_df=None,
     regression_df = pd.concat(dict_data_per_year.values(), ignore_index=True)
     return regression_df
 
+def get_path_repo():
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    script_dir = script_dir.split('/')
+    new_dir = ''
+    for i in range(len(script_dir)):
+        new_dir += script_dir[i] + '/'
+        if script_dir[i] == 'VeluweProtoDT':
+            break
+    return new_dir
+
 def load_and_prep_moth_data(fp_path=None, hv_only=True):
     if fp_path is None:
-        fp_path = '/Users/tplas/data/2025-06-16 moth data Natalie/1994-2019_field-d50.csv'
-    df_moth = pd.read_csv(fp_path, header=0, sep=';')
+        new_dir = get_path_repo()        
+        fp_path = os.path.join(new_dir, '1994-2019_field-d50.csv')
+    try:
+        df_moth = pd.read_csv(fp_path, header=0, sep=';')
+    except pd.errors.ParserError:
+        col_names = ['YearCatch', 'YearHatch', 'AreaShortName', 'Site', 'Tree', 'NovemberDate', 'TubeNumber', 'D50Calc']
+        df_moth = pd.read_csv(fp_path, names=col_names, sep=';', skiprows=1)
     assert len(df_moth) == 5792, "Expected 5792 rows in the moth data from excel file, but found a different number."
     if hv_only:
         df_moth = df_moth[df_moth['AreaShortName'] == 'HV']
@@ -112,6 +127,7 @@ def load_and_prep_moth_data(fp_path=None, hv_only=True):
     df_moth['DOY_hatch'] = pd.to_datetime(dict(year=df_moth['YearHatch'], month=df_moth['MonthHatch'], day=df_moth['DayHatch'])).dt.dayofyear
     
     df_moth = df_moth[['YearHatch', 'DOY_hatch', 'AreaShortName', 'Site', 'Tree']]
+    print(f"Loaded moth data from {fp_path}, shape: {df_moth.shape}")
     return df_moth
 
 def prep_moth_data_for_regression(moth_df=None, temp_df=None, location_list=['HV'], verbose=1):
@@ -119,8 +135,13 @@ def prep_moth_data_for_regression(moth_df=None, temp_df=None, location_list=['HV
         VeluweTreeData = DataLoaderMaker()
         VeluweTreeData.load()
         temp_df = VeluweTreeData.get("temp_climwin_input")
+        
         assert location_list is None or len(location_list) == 1 and location_list[0] == 'HV', "Currently only supports HV location for moth data. (See hv_only arg in load_and_prep_moth_data)"
         moth_df = load_and_prep_moth_data()
+        # new_dir = get_path_repo()
+        # temp_df = pd.read_csv(os.path.join(new_dir, 'data/temp_climwin_input.csv'))
+        # temp_df['date'] = pd.to_datetime(temp_df['date'])
+        # moth_df = pd.read_csv(os.path.join(new_dir, 'data/df_moth.csv'))
 
     # moth_df = moth_df[moth_df['AreaShortName'].isin(location_list)]
     years = sorted(moth_df.YearHatch.unique())

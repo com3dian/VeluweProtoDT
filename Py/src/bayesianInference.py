@@ -47,9 +47,15 @@ def main():
     parser.add_argument('--split_method', type=str, default='sequential',
                         help='Method to split seasons for training and testing. Options: "sequential", "mean_temperature"')
     parser.add_argument('--n_splits', type=int, default=6)
+    parser.add_argument('--data_type', type=str, default='budburst')
     
     args = parser.parse_args()
 
+    assert args.data_type in ['budburst', 'moth'], 'data_type must be budburst or moth'
+    if args.data_type == 'moth':
+        name_cdf = 'moth_cdf'
+    elif args.data_type == 'budburst':
+        name_cdf = 'bb_cdf'
     assert args.mode_model in ['force', 'force_chill', 'force_chill-zoned'], 'mode_model must be force, chill or force-zoned'
     if args.mode_model == 'force':
         INFER_CHILLING = False
@@ -74,10 +80,15 @@ def main():
     if args.location_option == 0:
         location_list=None
     elif args.location_option == 1:
-        location_list=['Hoge Veluwe']
+        if args.data_type == 'budburst':
+            location_list=['Hoge Veluwe']
+        elif args.data_type == 'moth':
+            location_list=['HV']
     elif args.location_option == 2:
+        assert args.data_type == 'budburst', 'location_option 2 only available for budburst data'
         location_list=['Oosterhout']
     if location_list is None:
+        assert args.data_type == 'budburst', 'location_list must be specified for budburst data'
         descr_location = 'All locations'
     else:
         descr_location = ' + '.join(location_list)
@@ -100,7 +111,8 @@ def main():
             location_list=location_list,
             scale_sigma_by_mu=args.scale_sigma_by_mu,
             split_method=args.split_method,
-            n_splits=args.n_splits
+            n_splits=args.n_splits,
+            data_type=args.data_type,
         )
 
         # Get the parent directory of the current script
@@ -226,7 +238,7 @@ def main():
 
                 ax2 = curr_ax.twinx()
                 ax2.plot(tmp_sel.doy, tmp_sel.predicted_bb_cdf, 'r-', lw=2)
-                ax2.plot(tmp_sel.doy, tmp_sel.bb_cdf, 'b-', lw=1)
+                ax2.plot(tmp_sel.doy, tmp_sel[name_cdf], 'b-', lw=1)
                 ax2.fill_between(x=tmp_sel.doy, y1=tmp_sel.bb_cdf_lower, y2=tmp_sel.bb_cdf_upper, color='red', alpha=0.4)
 
                 curr_ax.annotate(s, xy=(0.05, 0.9), xycoords='axes fraction', ha='left', va='center', weight='bold')

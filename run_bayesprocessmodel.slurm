@@ -26,8 +26,9 @@ python Py/src/bayesianInference.py \
     --tune-samples=$TUNE_SAMPLES \
     --chains=$CHAINS \
     --n_cores=32 \
-    --mode_model="force_chill-zoned" \
+    --mode_model="force" \
     --cv \
     --location_option=1 \
-    --split_method='mean_temperature' \
-    --n_splits=3
+    --split_method='sequential' \
+    --n_splits=3 \
+    --data_type='moth' \
