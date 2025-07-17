@@ -85,11 +85,44 @@ def prep_budburst_data_for_regression(budburst_df=None, temp_df=None,
     regression_df = pd.concat(dict_data_per_year.values(), ignore_index=True)
     return regression_df
 
-def prep_moth_data_for_regression(moth_df, temp_df, location_list=['HV'], verbose=1):
-    if temp_df is None:
-        assert False, 'implement'
+def load_and_prep_moth_data(fp_path=None, hv_only=True):
+    if fp_path is None:
+        fp_path = '/Users/tplas/data/2025-06-16 moth data Natalie/1994-2019_field-d50.csv'
+    df_moth = pd.read_csv(fp_path, header=0, sep=';')
+    assert len(df_moth) == 5792, "Expected 5792 rows in the moth data from excel file, but found a different number."
+    if hv_only:
+        df_moth = df_moth[df_moth['AreaShortName'] == 'HV']
+    # Calculate DOY_hatch as the day of year for April in YearHatch
+    df_moth['D50Calc'] = df_moth['D50Calc'].apply(lambda x: float(str(x).replace(',', '.')))
+    df_moth['D50Calc'] = df_moth['D50Calc'].round(0).astype(int)
+    df_moth['MonthHatch'] = -1 
+    df_moth['DayHatch'] = -1
+    for id, row in df_moth.iterrows():
+        if row['D50Calc'] < 61 and row['D50Calc'] > 30:
+            df_moth.loc[id, 'MonthHatch'] = 5
+            df_moth.loc[id, 'DayHatch'] = row['D50Calc'] - 30
+        elif row['D50Calc'] < 1 and row['D50Calc'] > -30:
+            df_moth.loc[id, 'MonthHatch'] = 3
+            df_moth.loc[id, 'DayHatch'] = 31 + row['D50Calc']
+        elif row['D50Calc'] < 31 and row['D50Calc'] > 0:
+            df_moth.loc[id, 'MonthHatch'] = 4
+            df_moth.loc[id, 'DayHatch'] = row['D50Calc']
+        else:
+            assert False, f"Unexpected D50Calc value {row['D50Calc']} for row {id}: {row}"
+    df_moth['DOY_hatch'] = pd.to_datetime(dict(year=df_moth['YearHatch'], month=df_moth['MonthHatch'], day=df_moth['DayHatch'])).dt.dayofyear
+    
+    df_moth = df_moth[['YearHatch', 'DOY_hatch', 'AreaShortName', 'Site', 'Tree']]
+    return df_moth
 
-    moth_df = moth_df[moth_df['AreaShortName'].isin(location_list)]
+def prep_moth_data_for_regression(moth_df=None, temp_df=None, location_list=['HV'], verbose=1):
+    if temp_df is None or moth_df is None:
+        VeluweTreeData = DataLoaderMaker()
+        VeluweTreeData.load()
+        temp_df = VeluweTreeData.get("temp_climwin_input")
+        assert location_list is None or len(location_list) == 1 and location_list[0] == 'HV', "Currently only supports HV location for moth data. (See hv_only arg in load_and_prep_moth_data)"
+        moth_df = load_and_prep_moth_data()
+
+    # moth_df = moth_df[moth_df['AreaShortName'].isin(location_list)]
     years = sorted(moth_df.YearHatch.unique())
     dict_data_per_year = {}
     season_start_doy = 250
@@ -141,8 +174,8 @@ def split_data_by_season(df_regression, split_seasons_traintest: int,
     df_regression = df_regression[df_regression['date'].dt.month < 7]  # delete Dec effectively, just to make DOY prior easier to deal with 
     seasons = sorted(df_regression["season"].unique())
     n_seasons_per_split = len(seasons) // n_splits
-    assert len(seasons) == 36, f"Expected 36 seasons, got {len(seasons)}"
-    assert int(n_seasons_per_split * n_splits) == len(seasons), f"Expected {len(seasons)} seasons, got {int(n_seasons_per_split * n_splits)}"
+    # assert len(seasons) == 36, f"Expected 36 seasons, got {len(seasons)}"
+    # assert int(n_seasons_per_split * n_splits) == len(seasons), f"Expected {len(seasons)} seasons, got {int(n_seasons_per_split * n_splits)}"
     assert type(split_seasons_traintest) == int and split_seasons_traintest in np.arange(n_splits), f"split_seasons_train must be in {np.arange(n_splits)}, got {split_seasons_traintest}"
     if split_method == 'mean_temperature':
         df_mean_temp = df_regression[df_regression['date'].dt.month <= 4].groupby('season')['temperature'].mean().sort_values(ascending=False)  # sorted from warmest to coldest
@@ -152,6 +185,7 @@ def split_data_by_season(df_regression, split_seasons_traintest: int,
         seasons_use = seasons
     train_seasons = seasons_use[:split_seasons_traintest * n_seasons_per_split] + seasons_use[(split_seasons_traintest + 1) * n_seasons_per_split:]
     test_seasons = seasons_use[split_seasons_traintest * n_seasons_per_split:(split_seasons_traintest + 1) * n_seasons_per_split]
+    # print(f'Splitting seasons: {len(seasons_use)} total seasons, {len(train_seasons)} train seasons, {len(test_seasons)} test seasons')
     assert len(test_seasons) == int(len(seasons_use) // n_splits), f'Expected {len(seasons_use) // n_splits} test seasons, got {len(test_seasons)}'
     assert len(train_seasons) == len(seasons_use) - len(test_seasons), f'Expected {len(seasons_use) - len(test_seasons)} train seasons, got {len(train_seasons)}'
     print(f"Training seasons: {train_seasons}, test seasons: {test_seasons}")
@@ -169,6 +203,7 @@ def split_data_by_season(df_regression, split_seasons_traintest: int,
     return df_train, df_test
 
 def bayesian_inference(
+        data_type='budburst',
         split_seasons_traintest=None,
         mcmc_draw_samples=100,
         mcmc_tune_samples=200,
@@ -183,7 +218,14 @@ def bayesian_inference(
         split_method='sequential',
         n_splits=6
         ):
-    df_regression = prep_budburst_data_for_regression(species_sel=species_sel, location_list=location_list)
+    if data_type == 'moth':
+        df_regression = prep_moth_data_for_regression(location_list=location_list)
+        name_cdf = 'moth_cdf'
+    elif data_type == 'budburst':
+        df_regression = prep_budburst_data_for_regression(species_sel=species_sel, location_list=location_list)
+        name_cdf = 'bb_cdf'
+    else:
+        raise ValueError(f"Unknown data_type {data_type}. Use 'budburst' or 'moth'.")
     df_train, df_test = split_data_by_season(df_regression=df_regression,
                                             split_seasons_traintest=split_seasons_traintest, 
                                             equal_number_obs_per_season=equal_number_obs_per_season,
@@ -195,7 +237,7 @@ def bayesian_inference(
                               mutable=True, dims='obs_id')  # Use MutableData for temperature to allow for dynamic updates
         if not infer_chilling:
            doy = pm.Data('doy', df_train['doy'].values, mutable=True, dims='obs_id')  
-        bb_cdf_obs = pm.Data("bb_cdf_obs", df_train['bb_cdf'].values, mutable=True, dims='obs_id')
+        bb_cdf_obs = pm.Data("bb_cdf_obs", df_train[name_cdf].values, mutable=True, dims='obs_id')
 
         ## Define priors
         t_base_force = pm.Normal("t_base_force", mu=5, sigma=2)  # Prior for base temperature
