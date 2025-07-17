@@ -132,17 +132,17 @@ def load_and_prep_moth_data(fp_path=None, location_list=['HV']):
     # print(f"Loaded moth data from {fp_path}, shape: {df_moth.shape}")
     return df_moth
 
-def prep_moth_data_for_regression(moth_df=None, temp_df=None, fp_moth_csv=None, location_list=['HV'], verbose=1):
+def prep_moth_data_for_regression(moth_df=None, temp_df=None, dir_moth_data=None, location_list=['HV'], verbose=1):
     if temp_df is None or moth_df is None:
         VeluweTreeData = DataLoaderMaker()
         VeluweTreeData.load()
         temp_df = VeluweTreeData.get("temp_climwin_input")
-        
+
+        if dir_moth_data is None:
+            fp_moth_csv = None 
+        else:
+            fp_moth_csv = os.path.join(dir_moth_data, '1994-2019_field-d50.csv')
         moth_df = load_and_prep_moth_data(fp_path=fp_moth_csv, location_list=location_list)
-        # new_dir = get_path_repo()
-        # temp_df = pd.read_csv(os.path.join(new_dir, 'data/temp_climwin_input.csv'))
-        # temp_df['date'] = pd.to_datetime(temp_df['date'])
-        # moth_df = pd.read_csv(os.path.join(new_dir, 'data/df_moth.csv'))
 
     years = sorted(moth_df.YearHatch.unique())
     dict_data_per_year = {}
@@ -237,10 +237,11 @@ def bayesian_inference(
         equal_number_obs_per_season=True,
         scale_sigma_by_mu=False,
         split_method='sequential',
-        n_splits=6
+        n_splits=6,
+        dir_moth_data=None
         ):
     if data_type == 'moth':
-        df_regression = prep_moth_data_for_regression(location_list=location_list)
+        df_regression = prep_moth_data_for_regression(location_list=location_list, dir_moth_data=dir_moth_data)
         name_cdf = 'moth_cdf'
     elif data_type == 'budburst':
         df_regression = prep_budburst_data_for_regression(species_sel=species_sel, location_list=location_list)
@@ -314,14 +315,3 @@ def bayesian_inference(
                           return_inferencedata=True)
         
     return trace, df_train, df_test, model
-
-
-def tmp():
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    script_dir = script_dir.split('/')
-    new_dir = ''
-    for i in range(len(script_dir)):
-        new_dir += script_dir[i] + '/'
-        if script_dir[i] == 'VeluweProtoDT':
-            break
-    return new_dir

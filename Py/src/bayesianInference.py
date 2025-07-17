@@ -113,6 +113,7 @@ def main():
             split_method=args.split_method,
             n_splits=args.n_splits,
             data_type=args.data_type,
+            dir_moth_data='~/data/moth_data'
         )
 
         # Get the parent directory of the current script
