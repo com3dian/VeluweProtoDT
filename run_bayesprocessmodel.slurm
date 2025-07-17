@@ -29,4 +29,5 @@ python Py/src/bayesianInference.py \
     --mode_model="force_chill-zoned" \
     --cv \
     --location_option=1 \
-    --split_method='mean_temperature' 
+    --split_method='mean_temperature' \
+    --n_splits=3

@@ -43,9 +43,10 @@ def main():
     parser.add_argument('--cv', action='store_true')
     parser.add_argument('--species', type=str, default='Quercus robur L.')
     parser.add_argument('--location_option', type=int, default=0)
-    parser.add_argument('--scale_sigma_by_mu', type=bool, default=False)
+    parser.add_argument('--scale_sigma_by_mu', type=bool, default=True)
     parser.add_argument('--split_method', type=str, default='sequential',
                         help='Method to split seasons for training and testing. Options: "sequential", "mean_temperature"')
+    parser.add_argument('--n_splits', type=int, default=6)
     
     args = parser.parse_args()
 
@@ -65,9 +66,9 @@ def main():
         pytensor.config.cxx = ''
 
     if USE_CV:
-        cv_splits = [0, 1, 2, 3, 4, 5]
+        cv_splits = list(range(args.n_splits))
     else:
-        cv_splits = [5]
+        cv_splits = [0]
 
     species_sel=args.species
     if args.location_option == 0:
@@ -98,7 +99,8 @@ def main():
             species_sel=species_sel,
             location_list=location_list,
             scale_sigma_by_mu=args.scale_sigma_by_mu,
-            split_method=args.split_method
+            split_method=args.split_method,
+            n_splits=args.n_splits
         )
 
         # Get the parent directory of the current script
@@ -212,7 +214,9 @@ def main():
             df_use["bb_cdf_upper"] = bb_cdf_upper
 
             ## Plot predictions with uncertainty (shaded area)
-            fig, ax = plt.subplots(figsize=(12, 6), nrows=2, ncols=3, gridspec_kw={"hspace": 0.4, "wspace": 0.8})
+            n_seasons = len(df_use['season'].unique())
+            fig, ax = plt.subplots(figsize=(12, int(np.ceil(n_seasons / 3)) * 3), nrows=int(np.ceil(n_seasons / 3)), 
+                                ncols=3, gridspec_kw={"hspace": 0.4, "wspace": 0.8})
             ymin, ymax = 10, 10
             for i_s, s in enumerate(df_use['season'].unique()):
                 tmp_sel = df_use[df_use['season'] == s]
