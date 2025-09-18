@@ -54,8 +54,10 @@ def main():
     assert args.data_type in ['budburst', 'moth'], 'data_type must be budburst or moth'
     if args.data_type == 'moth':
         name_cdf = 'moth_cdf'
+        name_file = 'winter-moth'
     elif args.data_type == 'budburst':
         name_cdf = 'bb_cdf'
+        name_file = args.species.rstrip('.').replace(' ', '-')
     assert args.mode_model in ['force', 'force_chill', 'force_chill-zoned'], 'mode_model must be force, chill or force-zoned'
     if args.mode_model == 'force':
         INFER_CHILLING = False
@@ -121,7 +123,7 @@ def main():
         parent_dir = os.path.dirname(os.path.dirname(current_dir))
         save_dir_base = os.path.join(parent_dir, 'fg')
         os.makedirs(save_dir_base, exist_ok=True)
-        folder_name = f'{timestamp}_{args.mode_model.replace('_', '-')}_{species_sel.rstrip('.').replace(' ', '-')}_{descr_location.replace(" ", "-")}'.lower()
+        folder_name = f'{timestamp}_{args.mode_model.replace('_', '-')}_{name_file}_{descr_location.replace(" ", "-")}'.lower()
         save_dir_fig = os.path.join(save_dir_base, folder_name)
         os.makedirs(save_dir_fig, exist_ok=True)
 
@@ -143,7 +145,7 @@ def main():
             df_use = df_test 
             # Get posterior samples
             posterior = az.extract(posterior_samples)
-            hparam_info_str = f'{descr_location}, {species_sel}\n{args.tune_samples} tune, {args.draw_samples} draw, {args.chains} chains, {args.mode_model}, split {split}'
+            hparam_info_str = f'{descr_location}, {name_file}\n{args.tune_samples} tune, {args.draw_samples} draw, {args.chains} chains, {args.mode_model}, split {split}'
             try:
                 if INFER_CHILLING:
                     vars_temp = ['t_base_force', 't_base_chill', 'threshold_cum_chill']
