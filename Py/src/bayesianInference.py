@@ -58,16 +58,23 @@ def main():
     elif args.data_type == 'budburst':
         name_cdf = 'bb_cdf'
         name_file = args.species.rstrip('.').replace(' ', '-')
-    assert args.mode_model in ['force', 'force_chill', 'force_chill-zoned'], 'mode_model must be force, chill or force-zoned'
+    assert args.mode_model in ['force', 'force_chill', 'force_chill-zoned', 'force_chill_photoperiod'], 'mode_model must be force, chill or force-zoned'
     if args.mode_model == 'force':
         INFER_CHILLING = False
         ZONED_CHILLING = False
+        PHOTOPERIOD = False
     elif args.mode_model == 'force_chill':
         INFER_CHILLING = True
         ZONED_CHILLING = False
+        PHOTOPERIOD = False
     elif args.mode_model == 'force_chill-zoned':
         INFER_CHILLING = True
         ZONED_CHILLING = True
+        PHOTOPERIOD = False
+    elif args.mode_model == 'force_chill_photoperiod':
+        INFER_CHILLING = True
+        ZONED_CHILLING = False
+        PHOTOPERIOD = True
     USE_MACOS = args.use_macos
     USE_CV = args.cv
     if USE_MACOS:
@@ -107,6 +114,7 @@ def main():
             mcmc_chains=args.chains,
             infer_chilling=INFER_CHILLING,
             zoned_chilling=ZONED_CHILLING,
+            photoperiod=PHOTOPERIOD,
             mcmc_cores=args.n_cores,
             split_seasons_traintest=split,
             species_sel=species_sel,
@@ -151,6 +159,8 @@ def main():
                     vars_temp = ['t_base_force', 't_base_chill', 'threshold_cum_chill']
                     if ZONED_CHILLING:
                         vars_temp += ['t_bottom_chill']
+                    if PHOTOPERIOD:
+                        vars_temp += ['delta_light']
                     vars_modelfit = ['alpha', 'beta', 'sigma']
                 else:
                     vars_temp = ['start_date', 't_base_force']
@@ -190,6 +200,8 @@ def main():
                         t_bottom_chill_sample = float(posterior["t_bottom_chill"][i].values)
                 else:
                     start_doy_sample = float(posterior["start_date"][i].values)
+                if PHOTOPERIOD:
+                    delta_light_sample = float(posterior["delta_light"][i].values)
 
                 ## Compute variables:
                 t_above_base_test = np.maximum(0, temperature_test - t_base_force_sample)
@@ -205,6 +217,8 @@ def main():
                         cum_chill_days[temperature_test[inds_s] < t_base_chill_sample] = 1
                         if ZONED_CHILLING:
                             cum_chill_days[temperature_test[inds_s] < t_bottom_chill_sample] = 0
+                        if PHOTOPERIOD:
+                            cum_chill_days = cum_chill_days + delta_light_sample
                         cum_chill_days = np.cumsum(cum_chill_days)
                         gdd_s[cum_chill_days < threshold_cum_chill_sample] = 0
                     else:

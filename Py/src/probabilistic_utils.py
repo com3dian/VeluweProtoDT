@@ -232,6 +232,7 @@ def bayesian_inference(
         mcmc_cores=8,
         infer_chilling=False,
         zoned_chilling=False,
+        photoperiod=False,
         species_sel='Quercus robur L.',
         location_list=None,
         equal_number_obs_per_season=True,
@@ -270,6 +271,8 @@ def bayesian_inference(
                 t_bottom_chill = pm.Normal("t_bottom_chill", mu=0, sigma=2)  # Prior for chilling bottom temperature
         else:
             start_doy = pm.DiscreteUniform("start_date", lower=60, upper=100)  # Prior for GDD start date
+        if photoperiod:
+            delta_light = sigma = pm.HalfNormal("delta_light", sigma=0.1)
         
         ## Calculate variables
         t_above_base = pm.math.maximum(0, temperature - t_base_force)  # GDD calculation
@@ -284,6 +287,8 @@ def bayesian_inference(
                 cum_chill_days = pt.where(temperature[inds_s] < t_base_chill, 1, 0)
                 if zoned_chilling:
                     cum_chill_days = pt.where(temperature[inds_s] < t_bottom_chill, 0, cum_chill_days)
+                if photoperiod: ## add delta_light to each chill day 
+                    cum_chill_days = cum_chill_days + delta_light
                 cum_chill_days = pt.cumsum(cum_chill_days)
                 gdd_s = pt.where(cum_chill_days >= threshold_cum_chill, gdd_s, 0)
             else:
