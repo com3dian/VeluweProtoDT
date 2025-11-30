@@ -156,9 +156,9 @@ def prep_moth_data_for_regression(moth_df=None, temp_df=None, dir_moth_data=None
             continue 
         arr_doy = moth_sel.DOY_hatch.values
         arr_doy = np.sort(arr_doy)
-        moth_cdf = np.arange(len(arr_doy)) // float(len(arr_doy) - 1)
+        moth_cdf = np.arange(len(arr_doy)) / float(len(arr_doy) - 1)
         arr_doy = np.round(arr_doy).astype(int)
-        moth_cdf = pd.DataFrame({'doy': arr_doy, 'moth_cdf': moth_cdf}).groupby('doy').max().reset_index()
+        moth_cdf = pd.DataFrame({'doy': arr_doy, 'moth_cdf': moth_cdf}).groupby('doy').max().reset_index()  # take max cdf per day
         moth_cdf['date'] = pd.to_datetime(moth_cdf['doy'], format='%j').dt.tz_localize('UTC') + pd.offsets.DateOffset(years=y - 1900)  ## 1900 is default start year for pd dt
         
         temp_sel = temp_df[((temp_df['date'].dt.year == y) & 
@@ -177,7 +177,7 @@ def prep_moth_data_for_regression(moth_df=None, temp_df=None, dir_moth_data=None
         del regression_df['date_moth']
         del regression_df['doy']
         regression_df = regression_df.rename(columns={'date_temp': 'date'})
-        regression_df['moth_cdf'] = regression_df['moth_cdf'].ffill().fillna(0)
+        regression_df['moth_cdf'] = regression_df['moth_cdf'].ffill().fillna(0)  # forward fill missing values (eg days without cdf vals get previous day cdf), then fill all days before 1st measurement with 0
         regression_df['date'] = pd.to_datetime(regression_df['date'], format='%Y-%m-%d')
 
         s = f'{y-1}-{y}'
