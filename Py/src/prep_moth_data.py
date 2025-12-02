@@ -102,13 +102,19 @@ def sigmoid(x, x0, k):
     y = 1 / (1 + np.exp(-k*(x - x0)))
     return y
 
-def fit_sigmoid_to_caterpillar_data(df, column='CumulativeRelativeCaterpillarsPerTube', verbose=0):
+def inv_sigmoid(y, x0, k):
+    assert 0 < y < 1, "y must be in (0, 1)"
+    return float(x0 + (1.0 / k) * np.log(y / (1 - y)))
+
+def fit_sigmoid_to_caterpillar_data(df, column='CumulativeRelativeCaterpillarsPerTube', verbose=0,
+                                    replace_nans=True):
     '''Fit a sigmoid function to the cumulative relative caterpillar counts per tube.
     
     Returns:
         dict with TubeID as keys and fitted parameters (x0, k) as values.
     '''
     tube_ids = df.TubeID.unique()
+    print(f'Fitting sigmoid to {len(tube_ids)} TubeIDs with {len(df)} data points.')
     dict_sigmoid_params = {x: [] for x in ['TubeID', 'x0', 'k']}
 
     tube_ids_fit = []
@@ -119,12 +125,21 @@ def fit_sigmoid_to_caterpillar_data(df, column='CumulativeRelativeCaterpillarsPe
     ## fit sigmoid to cumulative relative caterpillar counts
 
     for tube_id in tqdm(tube_ids):
+        tube_id = int(tube_id)
         df_tube = df[df.TubeID == tube_id]
         if df_tube.isna().sum().sum() > 0:
-            tube_ids_nans.append(tube_id)
-            if verbose: 
-                print(f"Skipping  TubeID {tube_id} with NaN values")
-            continue
+            if replace_nans:
+                df_tube = df_tube.dropna()
+                if df_tube.shape[0] == 0:
+                    tube_ids_nans.append(tube_id)
+                    if verbose: 
+                        print(f"Skipping  TubeID {tube_id} with all NaN values after dropna")
+                    continue
+            else:
+                tube_ids_nans.append(tube_id)
+                if verbose: 
+                    print(f"Skipping  TubeID {tube_id} with NaN values")
+                continue
         max_count = df_tube.CumulativeRelativeCaterpillarsPerTube.max()
         if max_count < 0.8:
             tube_ids_no_high_count.append(tube_id)
