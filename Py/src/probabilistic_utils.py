@@ -27,7 +27,7 @@ def prep_budburst_data_for_regression(budburst_df=None, temp_df=None,
         Each column is one feature (temperature, GDD, bb_frac).
     """
     if budburst_df is None or temp_df is None:
-        print('No data provided -- using default data')
+        print('No dataframes provided -- using default budburst and temperature data')
         VeluweTreeData = DataLoaderMaker()
         VeluweTreeData.load()
 
@@ -104,11 +104,20 @@ def load_and_prep_moth_data(fp_path=None, location_list=['HV']):
         df_moth = pd.read_csv(fp_path, header=0, sep=';')
     except pd.errors.ParserError:
         print(f"ParserError: Trying to read {fp_path} with custom column names.")
-        col_names = ['YearCatch', 'YearHatch', 'AreaShortName', 'Site', 'Tree', 'NovemberDate', 'TubeNumber', 'D50Calc']
+        if fp_path.endswith('1994-2019_field-d50.csv'):
+            col_names = ['YearCatch', 'YearHatch', 'AreaShortName', 'Site', 'Tree', 'NovemberDate', 'TubeNumber', 'D50Calc']
+        else:
+            raise ValueError(f"Unknown file format for {fp_path}. Please provide the correct column names.")
         df_moth = pd.read_csv(fp_path, names=col_names, sep=';', skiprows=1)
-    assert len(df_moth) == 5792, "Expected 5792 rows in the moth data from excel file, but found a different number."
+    if fp_path.endswith('1994-2019_field-d50.csv'):
+        assert len(df_moth) == 5792, "Expected 5792 rows in the moth data from excel file, but found a different number."
+    else:
+        print(f'THere are {len(df_moth)} rows in the moth data from {fp_path}')
     df_moth = df_moth[df_moth['AreaShortName'].isin(location_list)]
-    
+    nan_rows = df_moth[df_moth['D50Calc'].isna()]
+    if len(nan_rows) > 0:
+        print(f"Warning: There are {len(nan_rows)} rows with NaN D50Calc values. These rows will be removed.")
+        df_moth = df_moth[~df_moth['D50Calc'].isna()]
     # Calculate DOY_hatch as the day of year for April in YearHatch
     df_moth['D50Calc'] = df_moth['D50Calc'].apply(lambda x: float(str(x).replace(',', '.')))
     df_moth['D50Calc'] = df_moth['D50Calc'].round(0).astype(int)
@@ -132,7 +141,7 @@ def load_and_prep_moth_data(fp_path=None, location_list=['HV']):
     # print(f"Loaded moth data from {fp_path}, shape: {df_moth.shape}")
     return df_moth
 
-def prep_moth_data_for_regression(moth_df=None, temp_df=None, dir_moth_data=None, location_list=['HV'], verbose=1):
+def prep_moth_data_for_regression(moth_df=None, temp_df=None, dir_moth_data=None, file_name=None, location_list=['HV'], verbose=1):
     if temp_df is None or moth_df is None:
         VeluweTreeData = DataLoaderMaker()
         VeluweTreeData.load()
@@ -141,7 +150,9 @@ def prep_moth_data_for_regression(moth_df=None, temp_df=None, dir_moth_data=None
         if dir_moth_data is None:
             fp_moth_csv = None 
         else:
-            fp_moth_csv = os.path.join(dir_moth_data, '1994-2019_field-d50.csv')
+            if file_name is None:
+                file_name = '1994-2019_field-d50.csv'
+            fp_moth_csv = os.path.join(dir_moth_data, file_name)
         moth_df = load_and_prep_moth_data(fp_path=fp_moth_csv, location_list=location_list)
 
     years = sorted(moth_df.YearHatch.unique())
@@ -167,7 +178,7 @@ def prep_moth_data_for_regression(moth_df=None, temp_df=None, dir_moth_data=None
                             (temp_df['date'].dt.day_of_year >= season_start_doy))].copy()
 
         if len(temp_sel) == 0:
-            print(f"No temperature data for year {y}")
+            print(f"No temperature data for year {y} - removing MOTH data for this year.")
             continue
 
         temp_sel = temp_sel[['date', 'temperature']].groupby('date').mean().reset_index()
