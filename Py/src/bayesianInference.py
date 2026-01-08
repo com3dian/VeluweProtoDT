@@ -94,8 +94,10 @@ def main():
         elif args.data_type == 'moth':
             location_list=['HV']
     elif args.location_option == 2:
-        assert args.data_type == 'budburst', 'location_option 2 only available for budburst data'
-        location_list=['Oosterhout']
+        if args.data_type == 'budburst':
+            location_list=['Oosterhout']
+        elif args.data_type == 'moth':
+            location_list=['HV', 'OH']
     if location_list is None:
         assert args.data_type == 'budburst', 'location_list must be specified for budburst data'
         descr_location = 'All locations'

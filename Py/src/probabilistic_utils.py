@@ -253,7 +253,8 @@ def bayesian_inference(
         dir_moth_data=None
         ):
     if data_type == 'moth':
-        df_regression = prep_moth_data_for_regression(location_list=location_list, dir_moth_data=dir_moth_data)
+        df_regression = prep_moth_data_for_regression(location_list=location_list, dir_moth_data=dir_moth_data,
+                                                      file_name='Qry_D50_AllClutches_CommonGarden.csv')
         name_cdf = 'moth_cdf'
     elif data_type == 'budburst':
         df_regression = prep_budburst_data_for_regression(species_sel=species_sel, location_list=location_list)

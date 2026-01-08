@@ -16,8 +16,8 @@ module load GPU
 source ~/venvs/bayesenv/bin/activate
 
 # Default values
-DRAW_SAMPLES=250
-TUNE_SAMPLES=500
+DRAW_SAMPLES=1500
+TUNE_SAMPLES=1000
 CHAINS=32
 
 # Run your Python script
@@ -26,9 +26,9 @@ python Py/src/bayesianInference.py \
     --tune-samples=$TUNE_SAMPLES \
     --chains=$CHAINS \
     --n_cores=32 \
-    --mode_model="force" \
+    --mode_model="force_chill_zoned" \
     --cv \
     --location_option=1 \
     --split_method='mean_temperature' \
     --n_splits=3 \
-    --data_type='moth' \
+    --data_type='budburst' \
