@@ -16,3 +16,5 @@ Py/src/__pycache__/*.pyc
 .DS_Store
 Py/src/__pycache__/*
 data/scenario_temperatures.csv
+
+.vscode/
