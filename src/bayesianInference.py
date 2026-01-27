@@ -127,7 +127,7 @@ def main():
 
         # Get the parent directory of the current script
         current_dir = os.path.dirname(os.path.abspath(__file__))
-        parent_dir = os.path.dirname(os.path.dirname(current_dir))
+        parent_dir = os.path.dirname(current_dir)
         save_dir_base = os.path.join(parent_dir, 'fg')
         os.makedirs(save_dir_base, exist_ok=True)
         folder_name = f'{timestamp}_{args.mode_model.replace('_', '-')}_{name_file}_{descr_location.replace(" ", "-")}'.lower()
@@ -164,6 +164,12 @@ def main():
                 else:
                     vars_temp = ['start_date', 't_base_force']
                     vars_modelfit = ['alpha', 'beta', 'sigma']
+
+                az.plot_posterior(posterior_samples, var_names=vars_temp)
+                plt.suptitle(hparam_info_str, weight='bold', fontsize=10)
+                plt.savefig(os.path.join(save_dir_fig, f'marginal_posterior_temperature_{timestamp}_split-{split}.png'),
+                            dpi=300, bbox_inches='tight')
+                plt.close()  # Close the figure to free memory
 
                 az.plot_pair(posterior_samples, var_names=vars_temp, kind='kde', marginals=True)
                 plt.suptitle(hparam_info_str, weight='bold', fontsize=10)
@@ -260,7 +266,7 @@ def main():
                 curr_ax.annotate(s, xy=(0.05, 0.9), xycoords='axes fraction', ha='left', va='center', weight='bold')
                 curr_ax.set_xlabel("DOY")
                 curr_ax.set_ylabel("Temperature")
-                ax2.set_ylabel("BB CDF")
+                ax2.set_ylabel("CDF")
                 ymin = min(ymin, curr_ax.get_ylim()[0])
                 ymax = max(ymax, curr_ax.get_ylim()[1])
 
