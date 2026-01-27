@@ -14,8 +14,6 @@ import logging
 from datetime import datetime
 
 sys.path.append(os.path.abspath(os.path.join(os.getcwd(), os.pardir, 'src')))
-from dataloadermaker import DataLoaderMaker
-import vis_utils as vu
 import probabilistic_utils as pu
 
 # Configure logger
@@ -79,7 +77,6 @@ def main():
     USE_CV = args.cv
     if USE_MACOS:
         pytensor.config.cxx = ''
-
     if USE_CV:
         cv_splits = list(range(args.n_splits))
     else:

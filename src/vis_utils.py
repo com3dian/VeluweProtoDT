@@ -5,8 +5,6 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 from datetime import datetime
 
-from dataloadermaker import DataLoaderMaker
-
 def plot_bb_one_year(budburst_df, temp_df, ax=None, 
                   y=2015, plot_mean_std=True, plot_cdf=True):
     

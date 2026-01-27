@@ -10,10 +10,9 @@ class DataLoaderMaker:
 
     def load(self, path = ""):
         if path == "":
-            # Get script directory
-            script_dir = os.path.dirname(os.path.abspath(__file__))
-            # Go up two directories and add 'data' folder
-            path = os.path.join(script_dir, '..', '..', 'data')
+            # Get src directory
+            src_dir = os.path.dirname(os.path.abspath(__file__))
+            path = os.path.join(src_dir, '..', 'data')
             # Check if directory exists
             if not os.path.exists(path):
                 raise FileNotFoundError(f"Data directory not found at {path}")

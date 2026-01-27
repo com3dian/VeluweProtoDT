@@ -91,7 +91,7 @@ def get_path_repo():
     new_dir = ''
     for i in range(len(script_dir)):
         new_dir += script_dir[i] + '/'
-        if script_dir[i] == 'VeluweProtoDT':
+        if script_dir[i] == 'bayesian-budburst':
             break
     return new_dir
 
