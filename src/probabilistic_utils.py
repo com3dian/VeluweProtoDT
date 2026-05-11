@@ -7,6 +7,7 @@ import pytensor
 import pytensor.tensor as pt
 from collections import Counter
 from dataloadermaker import DataLoaderMaker
+from collections import namedtuple
 
 def prep_budburst_data_for_regression(budburst_df=None, temp_df=None, 
                             #  t_base_force=4, gdd_month_day_start=None, 
@@ -198,6 +199,54 @@ def prep_moth_data_for_regression(moth_df=None, temp_df=None, dir_moth_data=None
 
     regression_df = pd.concat(dict_data_per_year.values(), ignore_index=True)
     return regression_df
+
+
+def load_and_prep_bb_int_data(folder_bb_int='/Users/tplas/data/2026-05-11 budburst international/',
+                          include_photoperiod=True):
+    assert os.path.exists(folder_bb_int), f"Folder {folder_bb_int} does not exist. Please check the path."
+    csv_file = os.path.join(folder_bb_int, '20260430_budburst_temp_photoperiod.csv')
+    assert os.path.exists(csv_file), f"File {csv_file} does not exist. Please check the path."
+    df_all = pd.read_csv(csv_file)
+
+    dict_df_bb_int = {}
+    coord_dict = {}
+    ## create named tuple with lat lon and s_id 
+    tuple_site_info = namedtuple('CountryData', ['lat', 'lon', 's_id', 'country'])
+    for s_id in df_all.s_id.unique():
+        s_id = int(s_id)
+        country = df_all[df_all.s_id == s_id].country.unique()[0]
+        tmp = df_all[df_all.s_id == s_id].copy()
+        assert tmp.lon.nunique() == 1, f"Expected only one unique longitude for country {country}, but found {tmp.lon.unique()}."
+        assert tmp.lat.nunique() == 1, f"Expected only one unique latitude for country {country}, but found {tmp.lat.unique()}."
+        assert tmp.s_id.nunique() == 1, f"Expected only one unique s_id for country {country}, but found {tmp.s_id.unique()}." 
+        coord_dict[s_id] = tuple_site_info(lat=tmp.lat.unique()[0], lon=tmp.lon.unique()[0], s_id=tmp.s_id.unique()[0], country=country)
+        
+        tmp = tmp.drop(columns=['lat', 'lon', 's_id', 'country']).copy()
+        ## convert date to datetime and extract day of year
+        tmp['date'] = pd.to_datetime(tmp['date'], format=r"%d/%m/%Y")
+        tmp['doy'] = tmp['date'].dt.dayofyear
+        tmp['bb_cdf'] = 0.0
+        
+        for year in tmp.year.unique():
+            tmp_year = tmp[tmp.year == year]
+            if tmp_year.empty:
+                continue
+            doy_bb = tmp_year['budburst_day'].values[0]
+            if pd.isna(doy_bb):
+                continue
+            tmp.loc[(tmp.year == year) & (tmp.doy >= doy_bb) & (tmp.doy < 300), 'bb_cdf'] = 1.0
+
+        tmp['season'] = (tmp['year'] - 1).astype('str') + '-' + tmp['year'].astype('str')
+        tmp = tmp.rename(columns={'mean_temperature': 'temperature'})
+        tmp = tmp.sort_values(by=['year', 'date']).reset_index(drop=True)
+        if include_photoperiod:
+            list_cols = ['bb_cdf', 'date', 'temperature', 'photoperiod', 'season', 'doy']
+        else:
+            list_cols = ['bb_cdf', 'date', 'temperature', 'season', 'doy']
+        tmp = tmp[list_cols].copy()
+
+        dict_df_bb_int[s_id] = tmp.copy()
+    return dict_df_bb_int, coord_dict
 
 def split_data_by_season(df_regression, split_seasons_traintest: int, 
                          equal_number_obs_per_season=True, split_method='sequential', n_splits=6):
