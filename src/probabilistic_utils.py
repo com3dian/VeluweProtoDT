@@ -3,6 +3,7 @@ import numpy as np
 import pandas as pd 
 from datetime import datetime
 import pymc as pm 
+import arviz as az
 import pytensor
 import pytensor.tensor as pt
 from collections import Counter
@@ -219,7 +220,7 @@ def load_and_prep_bb_int_data(folder_bb_int='/Users/tplas/data/2026-05-11 budbur
         assert tmp.lon.nunique() == 1, f"Expected only one unique longitude for country {country}, but found {tmp.lon.unique()}."
         assert tmp.lat.nunique() == 1, f"Expected only one unique latitude for country {country}, but found {tmp.lat.unique()}."
         assert tmp.s_id.nunique() == 1, f"Expected only one unique s_id for country {country}, but found {tmp.s_id.unique()}." 
-        coord_dict[s_id] = tuple_site_info(lat=tmp.lat.unique()[0], lon=tmp.lon.unique()[0], s_id=tmp.s_id.unique()[0], country=country)
+        coord_dict[s_id] = tuple_site_info(lat=float(tmp.lat.unique()[0]), lon=float(tmp.lon.unique()[0]), s_id=int(tmp.s_id.unique()[0]), country=country)
         
         tmp = tmp.drop(columns=['lat', 'lon', 's_id', 'country']).copy()
         ## convert date to datetime and extract day of year
@@ -381,3 +382,141 @@ def bayesian_inference(
                           return_inferencedata=True)
         
     return trace, df_train, df_test, model
+
+def get_name(infer_chilling, zoned_chilling, photoperiod):
+    '''from bayesianInference.py:
+    
+    if args.mode_model == 'force':
+        INFER_CHILLING = False
+        ZONED_CHILLING = False
+        PHOTOPERIOD = False
+    elif args.mode_model == 'force_chill':
+        INFER_CHILLING = True
+        ZONED_CHILLING = False
+        PHOTOPERIOD = False
+    elif args.mode_model == 'force_chill-zoned':
+        INFER_CHILLING = True
+        ZONED_CHILLING = True
+        PHOTOPERIOD = False
+    elif args.mode_model == 'force_chill_photoperiod':
+        INFER_CHILLING = True
+        ZONED_CHILLING = False
+        PHOTOPERIOD = True
+    '''
+    if infer_chilling and zoned_chilling and photoperiod:
+        mode_model = 'force-chill-zoned-photoperiod'
+    elif infer_chilling and zoned_chilling:
+        mode_model = 'force-chill-zoned'
+    elif infer_chilling and photoperiod:
+        mode_model = 'force-chill-photoperiod'
+    elif infer_chilling:
+        mode_model = 'force-chill'
+    else:
+        mode_model = 'force'
+    return mode_model
+
+def load_posterior_and_data(datetime_str_posterior, split_n, location_str='all-locations', fp=None, moth_datatype=False,
+                            get_train=False, infer_chilling=True, zoned_chilling=True, photoperiod=False,
+                            location_list_obs=None, split_method='sequential', n_splits=6):
+    mode_model = get_name(infer_chilling=infer_chilling, zoned_chilling=zoned_chilling, photoperiod=photoperiod)
+    
+    if fp is None:
+        fp = f'/Users/tplas/data/2025-07 bayesian budburst runs/{datetime_str_posterior}_{mode_model}_quercus-robur-l_{location_str}/posterior_samples_{datetime_str_posterior}_split-{split_n}.nc'
+    assert os.path.exists(fp), f"File not found: {fp}"
+    posterior_samples = az.from_netcdf(fp)
+
+    if moth_datatype:
+        df_regression = prep_moth_data_for_regression(location_list=location_list_obs, dir_moth_data='/Users/tplas/data/2025-06-16 moth data Natalie')
+    else:
+       df_regression = prep_budburst_data_for_regression(location_list=location_list_obs)
+    df_train, df_test = split_data_by_season(df_regression=df_regression,
+                                                split_seasons_traintest=int(fp.split('-')[-1].rstrip('.nc')), 
+                                                equal_number_obs_per_season=True,
+                                                split_method=split_method,
+                                                n_splits=n_splits)
+
+    if get_train:
+        dict_df = {'train': df_train, 'test': df_test}
+    else:
+        dict_df = {'test': df_test}
+
+    return posterior_samples, dict_df
+
+def posterior_predictions(posterior_samples, dict_df, infer_chilling=True, zoned_chilling=True, photoperiod=False,
+                          return_all_samples=False):
+    posterior = az.extract(posterior_samples)
+    INFER_CHILLING = infer_chilling
+    ZONED_CHILLING = zoned_chilling
+    PHOTOPERIOD = photoperiod
+    perc_list = [0.5, 2.5, 10, 20, 40, 50, 60, 80, 90, 97.5, 99.5]
+    dict_bb_cdf = {x: {} for x in ['mean', 'sample_std', 'samples', 'date', 'season', 'bb_cdf', 'doy'] + [f'perc_{p}' for p in perc_list]}  # Dictionary to store BB CDF predictions for each dataset
+    
+    for i_tt, (tt, df_use) in enumerate(dict_df.items()):
+        print(f"Processing dataset {tt} ({i_tt + 1}/{len(dict_df)}) with {len(df_use)} observations...")
+        dates = df_use['date'].values
+        seasons = df_use['season'].values
+        bb_cdf = df_use['bb_cdf'].values
+        # Extract posterior samples (e.g., 1000 samples)
+        n_samples = len(posterior["t_base_force"])  # Number of posterior samples
+        temperature_test = df_use["temperature"].values
+        n_test = len(temperature_test)  # Number of test observations
+
+        # Initialize array to store GDD predictions (n_samples x n_test)
+        gdd_samples = np.zeros((n_samples, n_test))
+
+        for i in range(n_samples):
+            ## Get posterior sample
+            t_base_force_sample = float(posterior["t_base_force"][i].values)
+            if INFER_CHILLING:
+                t_base_chill_sample = float(posterior["t_base_chill"][i].values)
+                threshold_cum_chill_sample = float(posterior["threshold_cum_chill"][i].values)
+                if ZONED_CHILLING:
+                    t_bottom_chill_sample = float(posterior["t_bottom_chill"][i].values)
+            else:
+                start_doy_sample = float(posterior["start_date"][i].values)
+            if PHOTOPERIOD:
+                delta_light_sample = float(posterior["delta_light"][i].values)
+
+            ## Compute variables:
+            t_above_base_test = np.maximum(0, temperature_test - t_base_force_sample)
+            gdd_test = np.zeros_like(t_above_base_test)
+            for s in df_use["season"].unique():
+                inds_s = df_use["season"] == s
+                inds_s = inds_s.values
+                doy_s = df_use["doy"][inds_s].values
+
+                gdd_s = t_above_base_test[inds_s]
+                if INFER_CHILLING:
+                    cum_chill_days = np.zeros_like(doy_s)
+                    cum_chill_days[temperature_test[inds_s] < t_base_chill_sample] = 1
+                    if ZONED_CHILLING:
+                        cum_chill_days[temperature_test[inds_s] < t_bottom_chill_sample] = 0
+                    if PHOTOPERIOD:
+                        cum_chill_days = cum_chill_days + delta_light_sample
+                    cum_chill_days = np.cumsum(cum_chill_days)
+                    gdd_s[cum_chill_days < threshold_cum_chill_sample] = 0
+                else:
+                    gdd_s[doy_s < start_doy_sample] = 0  # Set GDD to 0 before start date
+                gdd_s = np.cumsum(gdd_s)  # Compute cumulative sum
+                gdd_test[inds_s] = gdd_s
+            gdd_samples[i, :] = gdd_test  # Store sample-specific GDD
+
+        ## Predict BB CDF using posterior samples
+        bb_cdf_samples = np.zeros((n_samples, n_test))
+        for i in range(n_samples):
+            alpha_sample = float(posterior["alpha"][i].values)
+            beta_sample = float(posterior["beta"][i].values)
+            bb_cdf_samples[i, :] = 1 / (1 + np.exp(-(alpha_sample + beta_sample * gdd_samples[i, :])))
+
+        dict_bb_cdf['sample_std'][tt] = posterior["sigma"].values  # Assuming sigma is constant across samples
+        if return_all_samples:
+            dict_bb_cdf['samples'][tt] = bb_cdf_samples  # Store all samples
+        dict_bb_cdf['mean'][tt] = np.mean(bb_cdf_samples, axis=0)  # Mean prediction
+        dict_bb_cdf['date'][tt] = dates  # Store dates
+        dict_bb_cdf['season'][tt] = seasons  # Store seasons
+        dict_bb_cdf['bb_cdf'][tt] = bb_cdf  # Store observed BB CDF
+        dict_bb_cdf['doy'][tt] = df_use['doy'].values  # Store DOY
+        for p in perc_list:
+            dict_bb_cdf[f'perc_{p}'][tt] = np.percentile(bb_cdf_samples, p, axis=0)  # Percentiles
+
+    return dict_bb_cdf
