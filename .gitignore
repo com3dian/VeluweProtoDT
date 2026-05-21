@@ -18,3 +18,7 @@ Py/src/__pycache__/*
 data/scenario_temperatures.csv
 
 .vscode/
+
+exported_predictions/
+
+exported_predictions.zip
