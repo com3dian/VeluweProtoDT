@@ -42,10 +42,10 @@ def prep_budburst_data_for_regression(budburst_df=None, temp_df=None,
     dict_data_per_year = {}
     years = sorted(budburst_df['year'].unique())
     if location_list is None:
-        print("No location list provided, using all locations")
-    else:
-        print(f"Filtering data for locations: {location_list}")
-        budburst_df = budburst_df[budburst_df['verbatimLocality'].isin(location_list)]
+        print("No location list provided, using Hoge Veluwe")
+        location_list = ['Hoge Veluwe']
+    print(f"Filtering data for locations: {location_list}")
+    budburst_df = budburst_df[budburst_df['verbatimLocality'].isin(location_list)]
 
     for y in years:
         bb_sel = budburst_df[np.logical_and(budburst_df['year'] == y, 
@@ -98,6 +98,9 @@ def get_path_repo():
     return new_dir
 
 def load_and_prep_moth_data(fp_path=None, location_list=['HV']):
+    if location_list is None:
+        print("No location list provided, using HV")
+        location_list = ['HV']
     if fp_path is None:
         new_dir = get_path_repo()        
         fp_path = os.path.join(new_dir, '1994-2019_field-d50.csv')
@@ -203,19 +206,37 @@ def prep_moth_data_for_regression(moth_df=None, temp_df=None, dir_moth_data=None
 
 
 def load_and_prep_bb_int_data(folder_bb_int='/Users/tplas/data/2026-05-11 budburst international/',
+                              name_file='20260430_budburst_temp_photoperiod.csv',
                           include_photoperiod=True):
     assert os.path.exists(folder_bb_int), f"Folder {folder_bb_int} does not exist. Please check the path."
-    csv_file = os.path.join(folder_bb_int, '20260430_budburst_temp_photoperiod.csv')
+    csv_file = os.path.join(folder_bb_int, name_file)
+    namestr = name_file.split('_')[0]
     assert os.path.exists(csv_file), f"File {csv_file} does not exist. Please check the path."
     df_all = pd.read_csv(csv_file)
+
+    if 's_id' not in df_all.columns:
+        if 'location_ID' in df_all.columns:
+            df_all = df_all.rename(columns={'location_ID': 's_id'})
+        else:
+            raise ValueError("Expected column 's_id' or 'location_ID' not found in the data. Please check the CSV file for the correct column name.")
+    
+    if 'budburst_day' in df_all.columns:
+        bool_store_bb_cdf = True
+    else:
+        bool_store_bb_cdf = False
+
+    if 'country' not in df_all.columns:
+        print("Warning: 'country' column not found in the data. Filling with 'unknown'.")
+        df_all['country'] = 'unknown'
 
     dict_df_bb_int = {}
     coord_dict = {}
     ## create named tuple with lat lon and s_id 
     tuple_site_info = namedtuple('CountryData', ['lat', 'lon', 's_id', 'country'])
     for s_id in df_all.s_id.unique():
-        s_id = int(s_id)
+        # s_id = int(s_id)
         country = df_all[df_all.s_id == s_id].country.unique()[0]
+
         tmp = df_all[df_all.s_id == s_id].copy()
         assert tmp.lon.nunique() == 1, f"Expected only one unique longitude for country {country}, but found {tmp.lon.unique()}."
         assert tmp.lat.nunique() == 1, f"Expected only one unique latitude for country {country}, but found {tmp.lat.unique()}."
@@ -224,30 +245,39 @@ def load_and_prep_bb_int_data(folder_bb_int='/Users/tplas/data/2026-05-11 budbur
         
         tmp = tmp.drop(columns=['lat', 'lon', 's_id', 'country']).copy()
         ## convert date to datetime and extract day of year
-        tmp['date'] = pd.to_datetime(tmp['date'], format=r"%d/%m/%Y")
+        if '/' in tmp.date.iloc[0]:
+            tmp['date'] = pd.to_datetime(tmp['date'], format=r"%d/%m/%Y")
+        elif '-' in tmp.date.iloc[0]:
+            tmp['date'] = pd.to_datetime(tmp['date'], format=r"%Y-%m-%d")
         tmp['doy'] = tmp['date'].dt.dayofyear
-        tmp['bb_cdf'] = 0.0
+        if bool_store_bb_cdf:
+            tmp['bb_cdf'] = 0.0
         
-        for year in tmp.year.unique():
-            tmp_year = tmp[tmp.year == year]
-            if tmp_year.empty:
-                continue
-            doy_bb = tmp_year['budburst_day'].values[0]
-            if pd.isna(doy_bb):
-                continue
-            tmp.loc[(tmp.year == year) & (tmp.doy >= doy_bb) & (tmp.doy < 300), 'bb_cdf'] = 1.0
+            for year in tmp.year.unique():
+                tmp_year = tmp[tmp.year == year]
+                if tmp_year.empty:
+                    continue
+                doy_bb = tmp_year['budburst_day'].values[0]
+                if pd.isna(doy_bb):
+                    continue
+                tmp.loc[(tmp.year == year) & (tmp.doy >= doy_bb) & (tmp.doy < 300), 'bb_cdf'] = 1.0
 
         tmp['season'] = (tmp['year'] - 1).astype('str') + '-' + tmp['year'].astype('str')
-        tmp = tmp.rename(columns={'mean_temperature': 'temperature'})
+        if 'mean_temperature' in tmp.columns:
+            tmp = tmp.rename(columns={'mean_temperature': 'temperature'})
+        elif 'tg' in tmp.columns:
+            tmp = tmp.rename(columns={'tg': 'temperature'})
         tmp = tmp.sort_values(by=['year', 'date']).reset_index(drop=True)
         if include_photoperiod:
-            list_cols = ['bb_cdf', 'date', 'temperature', 'photoperiod', 'season', 'doy']
+            list_cols = ['date', 'temperature', 'photoperiod', 'season', 'doy']
         else:
-            list_cols = ['bb_cdf', 'date', 'temperature', 'season', 'doy']
+            list_cols = ['date', 'temperature', 'season', 'doy']
+        if bool_store_bb_cdf:
+            list_cols = ['bb_cdf'] + list_cols
         tmp = tmp[list_cols].copy()
 
         dict_df_bb_int[s_id] = tmp.copy()
-    return dict_df_bb_int, coord_dict
+    return dict_df_bb_int, coord_dict, namestr
 
 def split_data_by_season(df_regression, split_seasons_traintest: int, 
                          equal_number_obs_per_season=True, split_method='sequential', n_splits=6):
@@ -415,7 +445,7 @@ def get_name(infer_chilling, zoned_chilling, photoperiod):
         mode_model = 'force'
     return mode_model
 
-def load_posterior_and_data(datetime_str_posterior, split_n, location_str='all-locations', fp=None, moth_datatype=False,
+def load_posterior_and_data(datetime_str_posterior=None, split_n=None, location_str='all-locations', fp=None, moth_datatype=False,
                             get_train=False, infer_chilling=True, zoned_chilling=True, photoperiod=False,
                             location_list_obs=None, split_method='sequential', n_splits=6):
     mode_model = get_name(infer_chilling=infer_chilling, zoned_chilling=zoned_chilling, photoperiod=photoperiod)
@@ -449,13 +479,15 @@ def posterior_predictions(posterior_samples, dict_df, infer_chilling=True, zoned
     ZONED_CHILLING = zoned_chilling
     PHOTOPERIOD = photoperiod
     perc_list = [0.5, 2.5, 10, 20, 40, 50, 60, 80, 90, 97.5, 99.5]
+    bool_bb_cdf_available = 'bb_cdf' in list(dict_df.values())[0].columns
     dict_bb_cdf = {x: {} for x in ['mean', 'sample_std', 'samples', 'date', 'season', 'bb_cdf', 'doy'] + [f'perc_{p}' for p in perc_list]}  # Dictionary to store BB CDF predictions for each dataset
     
     for i_tt, (tt, df_use) in enumerate(dict_df.items()):
         print(f"Processing dataset {tt} ({i_tt + 1}/{len(dict_df)}) with {len(df_use)} observations...")
         dates = df_use['date'].values
         seasons = df_use['season'].values
-        bb_cdf = df_use['bb_cdf'].values
+        if bool_bb_cdf_available:
+            bb_cdf = df_use['bb_cdf'].values
         # Extract posterior samples (e.g., 1000 samples)
         n_samples = len(posterior["t_base_force"])  # Number of posterior samples
         temperature_test = df_use["temperature"].values
@@ -514,7 +546,10 @@ def posterior_predictions(posterior_samples, dict_df, infer_chilling=True, zoned
         dict_bb_cdf['mean'][tt] = np.mean(bb_cdf_samples, axis=0)  # Mean prediction
         dict_bb_cdf['date'][tt] = dates  # Store dates
         dict_bb_cdf['season'][tt] = seasons  # Store seasons
-        dict_bb_cdf['bb_cdf'][tt] = bb_cdf  # Store observed BB CDF
+        if bool_bb_cdf_available:
+            dict_bb_cdf['bb_cdf'][tt] = bb_cdf  # Store observed BB CDF
+        else:
+            dict_bb_cdf['bb_cdf'][tt] = None  # No observed BB CDF available
         dict_bb_cdf['doy'][tt] = df_use['doy'].values  # Store DOY
         for p in perc_list:
             dict_bb_cdf[f'perc_{p}'][tt] = np.percentile(bb_cdf_samples, p, axis=0)  # Percentiles
